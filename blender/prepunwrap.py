@@ -17,6 +17,7 @@ bl_info = {
 
 # ---> START Panel
 
+
 class PrepUnwrapPanel(Panel):
     """Prep Mesh Unwrap"""
     bl_label = "Prepare Mesh Unwrap"
@@ -31,6 +32,7 @@ class PrepUnwrapPanel(Panel):
 
 # <--- END Panel
 # ---> START Operators
+
 
 def get_timestamp():
     """Get ISO formatted timestamp.
@@ -79,7 +81,7 @@ def get_mesh_collections(**kwargs):
 
 
 def prep_mesh_for_unwrap(mesh_collections, export_col_name):
-    """Prepare static meshes for UV unwrapping. 
+    """Prepare static meshes for UV unwrapping.
 
     Meshes inside each collection are joined, renamed to its respective
     collection name, cleaned up, and moved to the export collection.
@@ -209,6 +211,7 @@ class PrepUnwrap(Operator):
         mesh_collections = get_mesh_collections()
         prep_mesh_for_unwrap(mesh_collections, export_col.name)
         return {'FINISHED'}
+
 
 # <--- END Operators
 
