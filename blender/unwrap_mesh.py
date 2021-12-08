@@ -47,7 +47,7 @@ def remove_uv_maps(mesh_obj):
     while uv_maps:
         mesh_data.uv_layers.remove(uv_maps.pop())
     return None
-    
+
 
 def unwrap_mesh(mesh_obj):
     """Unwrap Mesh.
@@ -58,8 +58,9 @@ def unwrap_mesh(mesh_obj):
     Returns:
         None
     """
+    bpy.context.view_layer.objects.active = mesh_obj
     if bpy.context.mode == 'OBJECT':
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.uv.unwrap(method='CONFORMAL', margin=0.05)
     mesh_obj.data.uv_layers[0].name = f"UV_{mesh_obj.name}"
@@ -81,21 +82,37 @@ def create_test_grid(**kwargs):
     image_name = kwargs.setdefault("name", "I_UV_Test_Grid")
     image = bpy.data.images.get(image_name)
     if not image:
-        image = bpy.ops.image.new(
+        bpy.ops.image.new(
             name = image_name,
             width = 1024,
             height = 1024,
             color = (0.0, 0.0, 0.0, 1.0),
             alpha = True,
             generated_type = 'UV_GRID',
-            float = False, 
+            float = False,
             use_stereo_3d = False,
             tiled = False
         )
+        image = bpy.data.images.get(image_name)
     return image
 
 
-def delete_material(material):
+def show_image_in_UV_editor(image):
+    """Show texture image in UV Editor.
+
+    Args:
+        image (bpy.types.Image): Image to show.
+
+    Returns:
+        None
+    """
+    for area in bpy.data.screens['UV Editing'].areas:
+        if area.type == 'IMAGE_EDITOR':
+            area.spaces.active.image = image
+    return None
+
+
+def delete_material(name):
     """Delete material from project.
 
     Args:
@@ -104,30 +121,34 @@ def delete_material(material):
     Returns:
         None
     """
-    bpy.data.materials.remove(
-        material,
-        do_unlink=True,
-        do_id_user=True,
-        do_ui_user=True
-    )
+    material = bpy.data.materials.get(name)
+    if material:
+        bpy.data.materials.remove(
+            material,
+            do_unlink=True,
+            do_id_user=True,
+            do_ui_user=True
+        )
     return None
 
 
-def delete_texture(texture):
-    """Delete texture from project.
+def delete_image(name):
+    """Delete image from project.
 
     Args:
-        texture (bpy.types.Texture): Texture to delete.
+        image (bpy.types.Texture): Image to delete.
 
     Returns:
         None
     """
-    bpy.data.images.remove(
-        texture,
-        do_unlink=True,
-        do_id_user=True,
-        do_ui_user=True
-    )
+    image = bpy.data.images.get(name)
+    if image:
+        bpy.data.images.remove(
+            image,
+            do_unlink=True,
+            do_id_user=True,
+            do_ui_user=True
+        )
     return None
 
 
@@ -147,6 +168,7 @@ def add_texture_to_material(image, material):
         bsdf = material.node_tree.nodes['Principled BSDF']
         texture = material.node_tree.nodes.new('ShaderNodeTexImage')
         texture.image = image
+        texture.location = (-300, 300)
         material.node_tree.links.new(
             bsdf.inputs['Base Color'],
             texture.outputs['Color']
@@ -185,16 +207,20 @@ class UnwrapMesh(Operator):
     bl_label = "UnwrapMesh"
 
     def execute(self, context):
+        delete_image("I_UV_Test_Grid")
+        delete_material("M_UV_Test_Grid")
         col = bpy.context.collection
         mesh_objs = [obj for obj in col.all_objects if obj.type == 'MESH']
         for obj in mesh_objs:
             if bpy.context.mode == 'EDIT_MESH':
-                bpy.ops.object.editmode_toggle()
-            mesh_obj.select_set(True)
-            remove_UVMaps(mesh_obj)
-            unwrap_mesh(mesh_obj)
+                bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            remove_uv_maps(obj)
+            unwrap_mesh(obj)
             image = create_test_grid()
-            material = assign_material(mesh_obj)
+            show_image_in_UV_editor(image)
+            material = assign_material(obj)
             add_texture_to_material(image, material)
             bpy.context.space_data.shading.type = 'MATERIAL'
         return {'FINISHED'}
