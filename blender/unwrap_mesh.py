@@ -62,7 +62,7 @@ def unwrap_mesh(mesh_obj):
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.unwrap(method='CONFORMAL', margin=0.05)
+    bpy.ops.uv.unwrap(method='CONFORMAL', margin=0.03)
     mesh_obj.data.uv_layers[0].name = f"UV_{mesh_obj.name}"
     return None
 
@@ -152,6 +152,16 @@ def delete_image(name):
     return None
 
 
+def remove_defaults():
+    """Remove the default objects created in this module."""
+    for i in ("I_UV_Test_Grid", "M_UV_Test_Grid"):
+        if i.startswith("I_"):
+            delete_image(i)
+        elif i.startswith("M_"):
+            delete_material(i)
+    return None
+
+
 def add_texture_to_material(image, material):
     """Add image texture to material using BSDF shader node.
 
@@ -207,8 +217,8 @@ class UnwrapMesh(Operator):
     bl_label = "UnwrapMesh"
 
     def execute(self, context):
-        delete_image("I_UV_Test_Grid")
-        delete_material("M_UV_Test_Grid")
+        bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
+        bpy.context.space_data.shading.type = 'MATERIAL'
         col = bpy.context.collection
         mesh_objs = [obj for obj in col.all_objects if obj.type == 'MESH']
         for obj in mesh_objs:
@@ -222,7 +232,7 @@ class UnwrapMesh(Operator):
             show_image_in_UV_editor(image)
             material = assign_material(obj)
             add_texture_to_material(image, material)
-            bpy.context.space_data.shading.type = 'MATERIAL'
+        bpy.ops.object.select_all(action='DESELECT')
         return {'FINISHED'}
 
 
