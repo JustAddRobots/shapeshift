@@ -1,13 +1,10 @@
 import bpy
-from bpy.types import Operator
-from bpy.types import Panel
-from bpy.types import PropertyGroup
 from datetime import datetime
 from datetime import timezone
 
 bl_info = {
-    "name": "Unwrap Mesh",
-    "description": "Tools for UV Unwrapping",
+    "name": "Shapeshift",
+    "description": "Tools for Static Mesh Export to UE4",
     "author": "Roderick Constance",
     "version": (0, 1, 0),
     "blender": (2, 80, 0),
@@ -16,16 +13,11 @@ bl_info = {
     "category": 'Mesh'
 }
 
-# ---> START Panel
 
-
-class UnwrapMeshPanel(Panel):
-    """Unwrap Mesh"""
-    bl_label = "Unwrap Mesh"
-    bl_idname = "VIEW3D_PT_unwrap_mesh"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "Shapeshift"
+class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
+    """Texture Mesh Panel"""
+    bl_label = "Texture Mesh"
+    bl_idname = "SHAPESHIFT_PT_texture_mesh"
 
     def draw(self, context):
         layout = self.layout
@@ -49,17 +41,14 @@ class UnwrapMeshPanel(Panel):
         row.prop(my_props, 'existing', text="")
 
         row = col.row(align=True)
-        row.operator(UnwrapMesh.bl_idname, text="Unwrap")
+        row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Unwrap")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Export Dir")
         row.prop(my_props, 'filepath', text="")
 
         row = col.row(align=True)
-        row.operator(ExportMesh.bl_idname, text="Export")
-
-# <--- END Panel
-# ---> START Operators
+        row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
 
 
 def get_timestamp():
@@ -439,7 +428,7 @@ def export_fbx(mesh_obj, export_dir):
     return None
 
 
-class MyProperties(PropertyGroup):
+class MyProperties(bpy.types.PropertyGroup):
     prefix: bpy.props.StringProperty(
         name="Prefix",
         default="SM_"
@@ -462,12 +451,10 @@ class MyProperties(PropertyGroup):
     )
 
 
-class ExportMesh(Operator):
-    bl_idname = "opr.export_mesh"
-    bl_label = "ExportMesh"
-
-#    filename_ext = "."
-#    use_filter_folder = True
+class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
+    """Export Mesh"""
+    bl_label = "SHAPESHIFT_OT_export_mesh"
+    bl_idname = "SHAPESHIFT_OT_export_mesh"
 
     def execute(self, context):
         scene = context.scene
@@ -476,13 +463,14 @@ class ExportMesh(Operator):
         mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
         for obj in mesh_objs:
             export_fbx(obj, my_props.filepath)
+
         return {'FINISHED'}
 
 
-class UnwrapMesh(Operator):
-    """Unwrap Mesh"""
-    bl_idname = "opr.unwrap_mesh"
-    bl_label = "UnwrapMesh"
+class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
+    """Texture Mesh"""
+    bl_label = "Texture Mesh"
+    bl_idname = "SHAPESHIFT_OT_texture_mesh"
 
     def execute(self, context):
         scene = context.scene
@@ -508,9 +496,9 @@ class UnwrapMesh(Operator):
 
 CLASSES = (
     MyProperties,
-    ExportMesh,
-    UnwrapMesh,
-    UnwrapMeshPanel
+    SHAPESHIFT_OT_export_mesh,
+    SHAPESHIFT_OT_texture_mesh,
+    SHAPESHIFT_PT_texture_mesh
 )
 
 
