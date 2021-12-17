@@ -99,6 +99,17 @@ def get_mesh_collections(**kwargs):
 
 
 def clone_collection(collection, **kwargs):
+    """Clone collection with internal meshes intact.
+
+    Args:
+        collection (bpy.types.Collection): Collection to clone.
+
+    Kwargs:
+        suffix (str): Suffix for cloned collection.
+
+    Returns:
+        cloned_collection (bpy.types.Collection): Cloned collection.
+    """
     clone_suffix = kwargs.setdefault("suffix", "TMP")
     cloned_collection_name = f"{collection.name}_{clone_suffix}"
     cloned_collection = create_collection(cloned_collection_name)
@@ -108,6 +119,14 @@ def clone_collection(collection, **kwargs):
 
 
 def flatten_collection_to_mesh(collection):
+    """Flatten collection to similarly-named joined and cleaned up mesh.
+
+    Args:
+        collection (bpy.types.Collection): Collection to flatten.
+
+    Returns:
+        cleaned_mesh (bpy.types.Object): Joined and cleaned mesh.
+    """
     mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
     joined_mesh = join_mesh(mesh_objs, collection.name)
     cleaned_mesh = clean_mesh(joined_mesh)
@@ -115,6 +134,19 @@ def flatten_collection_to_mesh(collection):
 
 
 def make_texture_mesh(collection, dest_collection_name):
+    """Make a collection of meshes into a mesh ready for export into UE4.
+
+    Collections are joined, cleaned, unwrapped, and textured with a
+    Blender test grid. This will allow easy visual inspection of the mesh
+    before exporting.
+
+    Args:
+        collection (bpy.types.Collection): Collection to texture.
+        dest_collection_name (str): Name of destination collection for mesh.
+
+    Returns:
+        mesh (bpy.types.Object): Textured mesh.
+    """
     cloned_collection = clone_collection(collection)
     mesh = flatten_collection_to_mesh(cloned_collection)
     move_mesh_to_collection(mesh, dest_collection_name)
@@ -407,6 +439,15 @@ def assign_material(mesh_obj, **kwargs):
 
 
 def export_fbx(mesh_obj, export_dir):
+    """Export mesh.
+
+    Args:
+        mesh_obj (bpy.types.Object): Mesh to export.
+        export_dir (str): Export directory (absolute).
+
+    Returns:
+        None
+    """
     export_path = f"{export_dir}/{mesh_obj.name}.fbx"
     if bpy.context.mode == 'EDIT_MESH':
         bpy.ops.object.mode_set(mode='OBJECT')
