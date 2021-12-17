@@ -1,5 +1,6 @@
 import bpy
 import numpy as np
+import sys
 from datetime import datetime
 from datetime import timezone
 from mathutils import Matrix
@@ -685,6 +686,20 @@ def export_fbx(mesh_obj, export_dir, strip_instnum):
     return None
 
 
+def update_progress(task_name, progress):
+    length = 20
+    block = int(round(length * progress))
+    msg = (
+        f"\r{task_name}: {'#' * block + '-' * (length - block)} "
+        f"{round(progress * 100, 2)}"
+    )
+    if progress >= 1:
+        msg += " DONE\r\n"
+    sys.stdout.write(msg)
+    sys.stdout.flush()
+    return None
+
+
 class MyProperties(bpy.types.PropertyGroup):
     prefix: bpy.props.StringProperty(
         name="Prefix",
@@ -771,6 +786,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
             snap_to_origin(obj_export)
             export_fbx(obj_export, my_props.filepath, my_props.strip_instnum)
         remove_collection(collection_export)
+        self.report({'INFO'}, "Export Complete")
         return {'FINISHED'}
 
 
@@ -793,14 +809,15 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
         source_collections = get_mesh_collections(prefix=prefix)
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
-        for collection in source_collections:
+        for i, collection in enumerate(source_collections):
             make_texture_mesh(
                 collection,
                 dest_collection_name,
                 pivot=my_props.pivot,
                 margin=my_props.margin,
             )
-
+            update_progress("Texturing Meshes", i / 100.0)
+        self.report({'INFO'}, "Texturing Meshes Complete")
         return {'FINISHED'}
 
 
