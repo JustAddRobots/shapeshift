@@ -1,13 +1,10 @@
 import bpy
-from bpy.types import Operator
-from bpy.types import Panel
-from bpy.types import PropertyGroup
 from datetime import datetime
 from datetime import timezone
 
 bl_info = {
-    "name": "Unwrap Mesh",
-    "description": "Tools for UV Unwrapping",
+    "name": "Shapeshift",
+    "description": "Tools for Static Mesh Export to UE4",
     "author": "Roderick Constance",
     "version": (0, 1, 0),
     "blender": (2, 80, 0),
@@ -16,14 +13,12 @@ bl_info = {
     "category": 'Mesh'
 }
 
-# ---> START Panel
 
-
-class UnwrapMeshPanel(Panel):
-    """Unwrap Mesh"""
-    bl_label = "Unwrap Mesh"
-    bl_idname = "VIEW3D_PT_unwrap_mesh"
-    bl_space_type = 'VIEW_3D'
+class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
+    """Texture Mesh Panel"""
+    bl_label = "Texture Mesh"
+    bl_idname = "shapeshift.texture_mesh_panel"
+    bl_space_type = "VIEW_3D"
     bl_region_type = 'UI'
     bl_category = "Shapeshift"
 
@@ -49,17 +44,14 @@ class UnwrapMeshPanel(Panel):
         row.prop(my_props, 'existing', text="")
 
         row = col.row(align=True)
-        row.operator(UnwrapMesh.bl_idname, text="Unwrap")
+        row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Unwrap")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Export Dir")
         row.prop(my_props, 'filepath', text="")
 
         row = col.row(align=True)
-        row.operator(ExportMesh.bl_idname, text="Export")
-
-# <--- END Panel
-# ---> START Operators
+        row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
 
 
 def get_timestamp():
@@ -75,18 +67,18 @@ def get_timestamp():
     return timestamp
 
 
-def create_collection(col_name):
+def create_collection(collection_name):
     """Create an empty collection.
 
     Args:
-        col_name (str): Name of collection.
+        collection_name (str): Name of collection.
 
     Returns:
-        col (bpy.types.Collection): Created collection.
+        collection (bpy.types.Collection): Created collection.
     """
-    col = bpy.data.collections.new(col_name)
-    bpy.context.scene.collection.children.link(col)
-    return col
+    collection = bpy.data.collections.new(collection_name)
+    bpy.context.scene.collection.children.link(collection)
+    return collection
 
 
 def get_mesh_collections(**kwargs):
@@ -103,12 +95,24 @@ def get_mesh_collections(**kwargs):
     """
     prefix = kwargs.setdefault("prefix", "SM_")
     mesh_collections = [
-        col for col in bpy.data.collections if col.name.startswith(prefix)
+        collection for collection in bpy.data.collections
+        if collection.name.startswith(prefix)
     ]
     return mesh_collections
 
 
 def clone_collection(collection, **kwargs):
+    """Clone collection with internal meshes intact.
+
+    Args:
+        collection (bpy.types.Collection): Collection to clone.
+
+    Kwargs:
+        suffix (str): Suffix for cloned collection.
+
+    Returns:
+        cloned_collection (bpy.types.Collection): Cloned collection.
+    """
     clone_suffix = kwargs.setdefault("suffix", "TMP")
     cloned_collection_name = f"{collection.name}_{clone_suffix}"
     cloned_collection = create_collection(cloned_collection_name)
@@ -118,6 +122,14 @@ def clone_collection(collection, **kwargs):
 
 
 def flatten_collection_to_mesh(collection):
+    """Flatten collection to similarly-named joined and cleaned up mesh.
+
+    Args:
+        collection (bpy.types.Collection): Collection to flatten.
+
+    Returns:
+        cleaned_mesh (bpy.types.Object): Joined and cleaned mesh.
+    """
     mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
     joined_mesh = join_mesh(mesh_objs, collection.name)
     cleaned_mesh = clean_mesh(joined_mesh)
@@ -125,6 +137,19 @@ def flatten_collection_to_mesh(collection):
 
 
 def make_texture_mesh(collection, dest_collection_name):
+    """Make a collection of meshes into a mesh ready for export into UE4.
+
+    Collections are joined, cleaned, unwrapped, and textured with a
+    Blender test grid. This will allow easy visual inspection of the mesh
+    before exporting.
+
+    Args:
+        collection (bpy.types.Collection): Collection to texture.
+        dest_collection_name (str): Name of destination collection for mesh.
+
+    Returns:
+        mesh (bpy.types.Object): Textured mesh.
+    """
     cloned_collection = clone_collection(collection)
     mesh = flatten_collection_to_mesh(cloned_collection)
     move_mesh_to_collection(mesh, dest_collection_name)
@@ -142,12 +167,12 @@ def make_texture_mesh(collection, dest_collection_name):
     return mesh
 
 
-def clone_meshes(mesh_objs, col_name):
+def clone_meshes(mesh_objs, collection_name):
     """Clone static meshes.
 
     Args:
         mesh_objs (list): Meshes to clone.
-        col_name (str): Collection into which meshes will be moved.
+        collection_name (str): Collection into which meshes will be moved.
 
     Returns:
         cloned_meshes (list): Cloned meshes.
@@ -159,7 +184,7 @@ def clone_meshes(mesh_objs, col_name):
         clone.data = clone.data.copy()
         clone.name = f"{obj.name}_{clone_suffix}"
         cloned_meshes.append(clone)
-        bpy.data.collections[col_name].objects.link(clone)
+        bpy.data.collections[collection_name].objects.link(clone)
     return cloned_meshes
 
 
@@ -217,24 +242,24 @@ def move_mesh_to_collection(obj, dest_collection_name):
     Returns:
         None
     """
-    for col in obj.users_collection:
-        col.objects.unlink(obj)
+    for collection in obj.users_collection:
+        collection.objects.unlink(obj)
     bpy.data.collections[dest_collection_name].objects.link(obj)
     return None
 
 
-def remove_collection(col):
+def remove_collection(collection):
     """Remove collection.
 
     Args:
-        col (bpy.types.Collection): Collection to remove.
+        collection (bpy.types.Collection): Collection to remove.
 
     Returns:
         None
     """
-    for obj in col.objects:
+    for obj in collection.objects:
         bpy.data.objects.remove(obj, do_unlink=True)
-    bpy.data.collections.remove(col)
+    bpy.data.collections.remove(collection)
     return None
 
 
@@ -417,6 +442,15 @@ def assign_material(mesh_obj, **kwargs):
 
 
 def export_fbx(mesh_obj, export_dir):
+    """Export mesh.
+
+    Args:
+        mesh_obj (bpy.types.Object): Mesh to export.
+        export_dir (str): Export directory (absolute).
+
+    Returns:
+        None
+    """
     export_path = f"{export_dir}/{mesh_obj.name}.fbx"
     if bpy.context.mode == 'EDIT_MESH':
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -439,7 +473,7 @@ def export_fbx(mesh_obj, export_dir):
     return None
 
 
-class MyProperties(PropertyGroup):
+class MyProperties(bpy.types.PropertyGroup):
     prefix: bpy.props.StringProperty(
         name="Prefix",
         default="SM_"
@@ -462,12 +496,10 @@ class MyProperties(PropertyGroup):
     )
 
 
-class ExportMesh(Operator):
-    bl_idname = "opr.export_mesh"
-    bl_label = "ExportMesh"
-
-#    filename_ext = "."
-#    use_filter_folder = True
+class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
+    """Export Mesh"""
+    bl_label = "Export Mesh"
+    bl_idname = "shapeshift.export_mesh"
 
     def execute(self, context):
         scene = context.scene
@@ -476,13 +508,14 @@ class ExportMesh(Operator):
         mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
         for obj in mesh_objs:
             export_fbx(obj, my_props.filepath)
+
         return {'FINISHED'}
 
 
-class UnwrapMesh(Operator):
-    """Unwrap Mesh"""
-    bl_idname = "opr.unwrap_mesh"
-    bl_label = "UnwrapMesh"
+class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
+    """Texture Mesh"""
+    bl_label = "Texture Mesh"
+    bl_idname = "shapeshift.texture_mesh"
 
     def execute(self, context):
         scene = context.scene
@@ -508,9 +541,9 @@ class UnwrapMesh(Operator):
 
 CLASSES = (
     MyProperties,
-    ExportMesh,
-    UnwrapMesh,
-    UnwrapMeshPanel
+    SHAPESHIFT_OT_export_mesh,
+    SHAPESHIFT_OT_texture_mesh,
+    SHAPESHIFT_PT_texture_mesh
 )
 
 
