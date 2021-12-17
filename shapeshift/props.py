@@ -17,7 +17,10 @@ bl_info = {
 class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
     """Texture Mesh Panel"""
     bl_label = "Texture Mesh"
-    bl_idname = "SHAPESHIFT_PT_texture_mesh"
+    bl_idname = "shapeshift.texture_mesh_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = 'UI'
+    bl_category = "Shapeshift"
 
     def draw(self, context):
         layout = self.layout
@@ -495,8 +498,8 @@ class MyProperties(bpy.types.PropertyGroup):
 
 class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
     """Export Mesh"""
-    bl_label = "SHAPESHIFT_OT_export_mesh"
-    bl_idname = "SHAPESHIFT_OT_export_mesh"
+    bl_label = "Export Mesh"
+    bl_idname = "shapeshift.export_mesh"
 
     def execute(self, context):
         scene = context.scene
@@ -512,7 +515,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
 class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
     """Texture Mesh"""
     bl_label = "Texture Mesh"
-    bl_idname = "SHAPESHIFT_OT_texture_mesh"
+    bl_idname = "shapeshift.texture_mesh"
 
     def execute(self, context):
         scene = context.scene
