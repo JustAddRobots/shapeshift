@@ -1,6 +1,7 @@
 import bpy
 from bpy.types import Operator
 from bpy.types import Panel
+from bpy.types import PropertyGroup
 from datetime import datetime
 from datetime import timezone
 
@@ -24,16 +25,38 @@ class UnwrapMeshPanel(Panel):
     bl_idname = "VIEW3D_PT_unwrap_mesh"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "shapeshift"
+    bl_category = "Shapeshift"
 
     def draw(self, context):
         layout = self.layout
-        col = layout.column()
-        for (prop_name, _) in PROPS:
-            row = col.row()
-            row.prop(context.scene, prop_name)
-        layout.operator(UnwrapMesh.bl_idname, text="Unwrap")
+        scene = context.scene
+        my_props = scene.myprops
 
+        box = layout.box()
+        col = box.column(align=True)
+        title_pct = 0.3
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Prefix")
+        row.prop(my_props, 'prefix', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Destination")
+        row.prop(my_props, 'dest_collection', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="")
+        row.prop(my_props, 'existing', text="")
+
+        row = col.row(align=True)
+        row.operator(UnwrapMesh.bl_idname, text="Unwrap")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Export Dir")
+        row.prop(my_props, 'filepath', text="")
+
+        row = col.row(align=True)
+        row.operator(ExportMesh.bl_idname, text="Export")
 
 # <--- END Panel
 # ---> START Operators
@@ -116,7 +139,6 @@ def make_texture_mesh(collection, dest_collection_name):
     show_image_in_UV_editor(image)
     material = assign_material(mesh)
     add_texture_to_material(image, material)
-    bpy.ops.object.select_all(action='DESELECT')
     return mesh
 
 
@@ -151,13 +173,15 @@ def join_mesh(mesh_objs, joined_name):
     Returns:
         joined_obj (bpy.types.Object): Joined mesh.
     """
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
     for obj in mesh_objs:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = mesh_objs[0]
     bpy.ops.object.join()
     joined_obj = bpy.context.selected_objects[0]
-    joined_obj.name = joined_name
+    joined_obj.name = joined_name.rstrip("_TMP")
     return joined_obj
 
 
@@ -175,10 +199,10 @@ def clean_mesh(obj):
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
     if bpy.context.mode == 'OBJECT':
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.remove_doubles()
     if bpy.context.mode == 'EDIT_MESH':
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.transform_apply()
     return obj
 
@@ -264,15 +288,15 @@ def create_test_grid(**kwargs):
     image = bpy.data.images.get(image_name)
     if not image:
         bpy.ops.image.new(
-            name = image_name,
-            width = 1024,
-            height = 1024,
-            color = (0.0, 0.0, 0.0, 1.0),
-            alpha = True,
-            generated_type = 'UV_GRID',
-            float = False,
-            use_stereo_3d = False,
-            tiled = False
+            name=image_name,
+            width=1024,
+            height=1024,
+            color=(0.0, 0.0, 0.0, 1.0),
+            alpha=True,
+            generated_type='UV_GRID',
+            float=False,
+            use_stereo_3d=False,
+            tiled=False
         )
         image = bpy.data.images.get(image_name)
     return image
@@ -392,25 +416,90 @@ def assign_material(mesh_obj, **kwargs):
     return material
 
 
-class UnwrapMesh(Operator):
-    """Prep UV Unwrap"""
-    bl_idname = "opr.prep_unwrap"
-    bl_label = "PrepUnwrap"
+def export_fbx(mesh_obj, export_dir):
+    export_path = f"{export_dir}/{mesh_obj.name}.fbx"
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = mesh_obj
+    bpy.ops.export_scene.fbx(
+        filepath=export_path,
+        check_existing=False,
+        use_selection=True,
+        global_scale=1.00,
+        apply_unit_scale=True,
+        apply_scale_options='FBX_SCALE_NONE',
+        use_space_transform=True,
+        object_types={'MESH'},
+        path_mode='AUTO',
+        batch_mode='OFF',
+        axis_forward='-Z',
+        axis_up='Y',
+    )
+    return None
+
+
+class MyProperties(PropertyGroup):
+    prefix: bpy.props.StringProperty(
+        name="Prefix",
+        default="SM_"
+    )
+    dest_collection: bpy.props.StringProperty(
+        name="Destination",
+        default="SHAPESHIFT"
+    )
+    existing: bpy.props.EnumProperty(
+        items=[
+            ("overwrite", "Overwrite", "Overwrite existing collection", '', 0),
+            ("timestamp", "Timestamp", "Append timestamp to collection", '', 1)
+        ],
+        default="timestamp"
+    )
+    filepath: bpy.props.StringProperty(
+        name="Export Folder",
+        subtype='DIR_PATH',
+        default="/tmp"
+    )
+
+
+class ExportMesh(Operator):
+    bl_idname = "opr.export_mesh"
+    bl_label = "ExportMesh"
+
+#    filename_ext = "."
+#    use_filter_folder = True
 
     def execute(self, context):
-        prefix, dest_collection_name, existing = (
-            context.scene.prefix,
-            context.scene.dest_collection,
-            context.scene.existing,
-        )
+        scene = context.scene
+        my_props = scene.myprops
+        collection = bpy.context.collection
+        mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
+        for obj in mesh_objs:
+            export_fbx(obj, my_props.filepath)
+        return {'FINISHED'}
+
+
+class UnwrapMesh(Operator):
+    """Unwrap Mesh"""
+    bl_idname = "opr.unwrap_mesh"
+    bl_label = "UnwrapMesh"
+
+    def execute(self, context):
+        scene = context.scene
+        my_props = scene.myprops
+        prefix = my_props.prefix
+        dest_collection_name = my_props.dest_collection
+        existing = my_props.existing
         if existing == "timestamp":
             dest_collection_name = "-".join(
                 [dest_collection_name, get_timestamp()]
             )
-        dest_collection = create_collection(dest_collection_name)
+        create_collection(dest_collection_name)
         mesh_collections = get_mesh_collections(prefix=prefix)
+        bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
+        bpy.context.space_data.shading.type = 'MATERIAL'
         for collection in mesh_collections:
-            make_texture_mesh(collection, dest_collection)
+            make_texture_mesh(collection, dest_collection_name)
 
         return {'FINISHED'}
 
@@ -418,43 +507,23 @@ class UnwrapMesh(Operator):
 # <--- END Operators
 
 CLASSES = (
+    MyProperties,
+    ExportMesh,
     UnwrapMesh,
     UnwrapMeshPanel
-)
-
-PROPS = (
-    ("prefix", bpy.props.StringProperty(
-        name="Source Collection Prefix",
-        default="SM_"
-    )),
-    ("dest_collection", bpy.props.StringProperty(
-        name="Destination Collection",
-        default="SHAPESHIFT"
-    )),
-    ("existing", bpy.props.EnumProperty(
-        items=[
-            ("overwrite", "Overwrite", "Overwrite existing collection", '', 0),
-            ("timestamp", "Timestamp", "Append timestamp to collection", '', 1)
-        ],
-        default="timestamp"
-    ))
 )
 
 
 def register():
     for cls in CLASSES:
         bpy.utils.register_class(cls)
-
-    for (prop_name, prop_value) in PROPS:
-        setattr(bpy.types.Scene, prop_name, prop_value)
+    bpy.types.Scene.myprops = bpy.props.PointerProperty(type=MyProperties)
 
 
 def unregister():
     for cls in CLASSES:
         bpy.utils.register_class(cls)
-
-    for (prop_name, prop_value) in PROPS:
-        delattr(bpy.types.Scene, prop_name)
+    del bpy.types.Scene.myprops
 
 
 if __name__ == "__main__":
