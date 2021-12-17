@@ -64,18 +64,18 @@ def get_timestamp():
     return timestamp
 
 
-def create_collection(col_name):
+def create_collection(collection_name):
     """Create an empty collection.
 
     Args:
-        col_name (str): Name of collection.
+        collection_name (str): Name of collection.
 
     Returns:
-        col (bpy.types.Collection): Created collection.
+        collection (bpy.types.Collection): Created collection.
     """
-    col = bpy.data.collections.new(col_name)
-    bpy.context.scene.collection.children.link(col)
-    return col
+    collection = bpy.data.collections.new(collection_name)
+    bpy.context.scene.collection.children.link(collection)
+    return collection
 
 
 def get_mesh_collections(**kwargs):
@@ -92,7 +92,8 @@ def get_mesh_collections(**kwargs):
     """
     prefix = kwargs.setdefault("prefix", "SM_")
     mesh_collections = [
-        col for col in bpy.data.collections if col.name.startswith(prefix)
+        collection for collection in bpy.data.collections
+        if collection.name.startswith(prefix)
     ]
     return mesh_collections
 
@@ -131,12 +132,12 @@ def make_texture_mesh(collection, dest_collection_name):
     return mesh
 
 
-def clone_meshes(mesh_objs, col_name):
+def clone_meshes(mesh_objs, collection_name):
     """Clone static meshes.
 
     Args:
         mesh_objs (list): Meshes to clone.
-        col_name (str): Collection into which meshes will be moved.
+        collection_name (str): Collection into which meshes will be moved.
 
     Returns:
         cloned_meshes (list): Cloned meshes.
@@ -148,7 +149,7 @@ def clone_meshes(mesh_objs, col_name):
         clone.data = clone.data.copy()
         clone.name = f"{obj.name}_{clone_suffix}"
         cloned_meshes.append(clone)
-        bpy.data.collections[col_name].objects.link(clone)
+        bpy.data.collections[collection_name].objects.link(clone)
     return cloned_meshes
 
 
@@ -206,24 +207,24 @@ def move_mesh_to_collection(obj, dest_collection_name):
     Returns:
         None
     """
-    for col in obj.users_collection:
-        col.objects.unlink(obj)
+    for collection in obj.users_collection:
+        collection.objects.unlink(obj)
     bpy.data.collections[dest_collection_name].objects.link(obj)
     return None
 
 
-def remove_collection(col):
+def remove_collection(collection):
     """Remove collection.
 
     Args:
-        col (bpy.types.Collection): Collection to remove.
+        collection (bpy.types.Collection): Collection to remove.
 
     Returns:
         None
     """
-    for obj in col.objects:
+    for obj in collection.objects:
         bpy.data.objects.remove(obj, do_unlink=True)
-    bpy.data.collections.remove(col)
+    bpy.data.collections.remove(collection)
     return None
 
 
