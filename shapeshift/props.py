@@ -1,4 +1,5 @@
 import bpy
+import sys
 from datetime import datetime
 from datetime import timezone
 
@@ -44,7 +45,7 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row.prop(my_props, 'existing', text="")
 
         row = col.row(align=True)
-        row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Unwrap")
+        row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Texture")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Export Dir")
@@ -473,6 +474,20 @@ def export_fbx(mesh_obj, export_dir):
     return None
 
 
+def update_progress(task_name, progress):
+    length = 20
+    block = int(round(length * progress))
+    msg = (
+        f"\r{task_name}: {'#' * block + '-' * (length - block)} "
+        f"{round(progress * 100, 2)}"
+    )
+    if progress >= 1:
+        msg += " DONE\r\n"
+    sys.stdout.write(msg)
+    sys.stdout.flush()
+    return None
+
+
 class MyProperties(bpy.types.PropertyGroup):
     prefix: bpy.props.StringProperty(
         name="Prefix",
@@ -508,7 +523,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
         mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
         for obj in mesh_objs:
             export_fbx(obj, my_props.filepath)
-
+        self.report({'INFO'}, "Export Complete")
         return {'FINISHED'}
 
 
@@ -531,9 +546,10 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
         mesh_collections = get_mesh_collections(prefix=prefix)
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
-        for collection in mesh_collections:
+        for i, collection in enumerate(mesh_collections):
             make_texture_mesh(collection, dest_collection_name)
-
+            update_progress("Texturing Meshes", i / 100.0)
+        self.report({'INFO'}, "Texturing Meshes Complete")
         return {'FINISHED'}
 
 
