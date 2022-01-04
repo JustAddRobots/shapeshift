@@ -50,6 +50,10 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row.label(text="Export Dir")
         row.prop(my_props, 'filepath', text="")
 
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="")
+        row.prop(my_props, 'strip_instnum', text="Strip Instance Number")
+
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
 
@@ -441,7 +445,7 @@ def assign_material(mesh_obj, **kwargs):
     return material
 
 
-def export_fbx(mesh_obj, export_dir):
+def export_fbx(mesh_obj, export_dir, strip_instnum):
     """Export mesh.
 
     Args:
@@ -451,11 +455,17 @@ def export_fbx(mesh_obj, export_dir):
     Returns:
         None
     """
-    export_path = f"{export_dir}/{mesh_obj.name}.fbx"
+    basename = mesh_obj.name
+    if strip_instnum:
+        list_ = basename.split(".")
+        if len(list_) > 1 and list_[-1].isnumeric():
+            basename = ".".join(list_[0:-1])
+    export_path = f"{export_dir}/{basename}.fbx"
     if bpy.context.mode == 'EDIT_MESH':
         bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
     bpy.context.view_layer.objects.active = mesh_obj
+    mesh_obj.select_set(True)
     bpy.ops.export_scene.fbx(
         filepath=export_path,
         check_existing=False,
@@ -494,6 +504,10 @@ class MyProperties(bpy.types.PropertyGroup):
         subtype='DIR_PATH',
         default="/tmp"
     )
+    strip_instnum: bpy.props.BoolProperty(
+        name="Strip Inst Num",
+        default=True
+    )
 
 
 class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
@@ -507,7 +521,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
         collection = bpy.context.collection
         mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
         for obj in mesh_objs:
-            export_fbx(obj, my_props.filepath)
+            export_fbx(obj, my_props.filepath, my_props.strip_instnum)
 
         return {'FINISHED'}
 
