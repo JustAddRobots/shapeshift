@@ -136,7 +136,8 @@ def flatten_collection_to_mesh(collection):
     """
     mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
     joined_mesh = join_mesh(mesh_objs, collection.name)
-    cleaned_mesh = clean_mesh(joined_mesh)
+    solid_mesh = solidify_mesh(joined_mesh)
+    cleaned_mesh = clean_mesh(solid_mesh)
     return cleaned_mesh
 
 
@@ -212,6 +213,25 @@ def join_mesh(mesh_objs, joined_name):
     joined_obj = bpy.context.selected_objects[0]
     joined_obj.name = joined_name.rstrip("_TMP")
     return joined_obj
+
+
+def solidify_mesh(obj):
+    """Add solidify modifier to mesh.
+
+    Args:
+        obj (bpy.types.Object): Mesh to solidify.
+
+    Returns:
+        obj (bpy.types.Object): Solidified mesh..
+    """
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    mod = obj.modifiers.new("Solidify", 'SOLIDIFY')
+    mod.solidify_mode = 'NON_MANIFOLD'
+    mod.nonmanifold_thickness_mode = 'EVEN'
+    mod.use_quality_normals = True
+    mod.thickness = 0.001
+    return obj
 
 
 def clean_mesh(obj):
@@ -475,6 +495,7 @@ def export_fbx(mesh_obj, export_dir, strip_instnum):
         apply_scale_options='FBX_SCALE_NONE',
         use_space_transform=True,
         object_types={'MESH'},
+        use_mesh_modifiers=True,
         path_mode='AUTO',
         batch_mode='OFF',
         axis_forward='-Z',
