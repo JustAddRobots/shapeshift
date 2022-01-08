@@ -44,7 +44,7 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row.prop(my_props, 'existing', text="")
 
         row = col.row(align=True)
-        row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Unwrap")
+        row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Texture")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Export Dir")
@@ -135,7 +135,8 @@ def flatten_collection_to_mesh(collection):
         cleaned_mesh (bpy.types.Object): Joined and cleaned mesh.
     """
     mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
-    joined_mesh = join_mesh(mesh_objs, collection.name)
+    baked_objs = bake_scale(mesh_objs)
+    joined_mesh = join_mesh(baked_objs, collection.name)
     solid_mesh = solidify_mesh(joined_mesh)
     cleaned_mesh = clean_mesh(solid_mesh)
     return cleaned_mesh
@@ -191,6 +192,37 @@ def clone_meshes(mesh_objs, collection_name):
         cloned_meshes.append(clone)
         bpy.data.collections[collection_name].objects.link(clone)
     return cloned_meshes
+
+
+def bake_scale(objs):
+    """Apply scale.
+
+    Args:
+        objs (list): Objects to bake.
+
+    Reurns:
+        baked_objs (list): Baked objects.
+    """
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    baked_objs = []
+    for obj in objs:
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.ops.object.make_single_user(
+            type='SELECTED_OBJECTS',
+            object=True,
+            obdata=True,
+            material=True,
+            animation=True
+        )
+        bpy.ops.object.transform_apply(
+            location=False,
+            rotation=False,
+            scale=True
+        )
+        baked_objs.append(obj)
+    return baked_objs
 
 
 def join_mesh(mesh_objs, joined_name):
@@ -539,8 +571,14 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         my_props = scene.myprops
-        collection = bpy.context.collection
-        mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
+        sel_objs = bpy.context.selected_objects
+        if len(sel_objs) > 0:
+            mesh_objs = [obj for obj in sel_objs if obj.type == 'MESH']
+        else:
+            collection = bpy.context.collection
+            mesh_objs = [
+                obj for obj in collection.all_objects if obj.type == 'MESH'
+            ]
         for obj in mesh_objs:
             export_fbx(obj, my_props.filepath, my_props.strip_instnum)
 
