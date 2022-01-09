@@ -27,8 +27,7 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         scene = context.scene
         my_props = scene.myprops
 
-        box = layout.box()
-        col = box.column(align=True)
+        col = layout.column(align=True)
         title_pct = 0.3
 
         row = col.split(factor=title_pct, align=True)
@@ -46,9 +45,30 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Texture")
 
+
+class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
+    """Export Mesh Panel"""
+    bl_label = "Export Mesh"
+    bl_idname = "shapeshift.export_mesh_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = 'UI'
+    bl_category = "Shapeshift"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        my_props = scene.myprops
+
+        col = layout.column(align=True)
+        title_pct = 0.3
+
         row = col.split(factor=title_pct, align=True)
         row.label(text="Export Dir")
         row.prop(my_props, 'filepath', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="")
+        row.prop(my_props, 'normals', text="Normals")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="")
@@ -173,7 +193,7 @@ def make_texture_mesh(collection, dest_collection_name):
     return mesh
 
 
-def clone_meshes(mesh_objs, collection_name):
+def clone_meshes(mesh_objs, collection_name, **kwargs):
     """Clone static meshes.
 
     Args:
@@ -183,7 +203,7 @@ def clone_meshes(mesh_objs, collection_name):
     Returns:
         cloned_meshes (list): Cloned meshes.
     """
-    clone_suffix = "TMP"
+    clone_suffix = kwargs.setdefault("suffix", "TMP")
     cloned_meshes = []
     for obj in mesh_objs:
         clone = obj.copy()
@@ -497,6 +517,38 @@ def assign_material(mesh_obj, **kwargs):
     return material
 
 
+def set_normals(obj, state):
+    """Set direction of normals.
+
+    Args:
+        obj (bpy.types.Object): Mesh object.
+        state (str): State to set direction of normals..
+
+    Returns:
+        None
+    """
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    if bpy.context.mode == 'OBJECT':
+        bpy.ops.object.mode_set(mode='EDIT')
+
+    if state in 'current':
+        pass
+    elif state in "flip":
+        bpy.ops.mesh.flip_normals()
+    elif state in "outside":
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+    elif state in "inside":
+        bpy.ops.mesh.normals_make_consistent(inside=True)
+
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    return obj
+
+
 def export_fbx(mesh_obj, export_dir, strip_instnum):
     """Export mesh.
 
@@ -508,6 +560,7 @@ def export_fbx(mesh_obj, export_dir, strip_instnum):
         None
     """
     basename = mesh_obj.name
+    basename = basename.removesuffix("_EXPORT")
     if strip_instnum:
         list_ = basename.split(".")
         if len(list_) > 1 and list_[-1].isnumeric():
@@ -561,6 +614,15 @@ class MyProperties(bpy.types.PropertyGroup):
         name="Strip Inst Num",
         default=True
     )
+    normals: bpy.props.EnumProperty(
+        items=[
+            ("current", "Current", "Keep Current", '', 0),
+            ("flip", "Flip", "Flip", '', 1),
+            ("outside", "Outside", "All Outside", '', 2),
+            ("inside", "Inside", "All Inside", '', 3),
+        ],
+        default="current"
+    )
 
 
 class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
@@ -579,9 +641,22 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
             mesh_objs = [
                 obj for obj in collection.all_objects if obj.type == 'MESH'
             ]
+        collection_export = create_collection(f"EXPORT-{get_timestamp()}")
         for obj in mesh_objs:
-            export_fbx(obj, my_props.filepath, my_props.strip_instnum)
-
+            clones = clone_meshes(
+                [obj],
+                collection_export.name,
+                suffix="EXPORT"
+            )
+            obj_export = clones[0]
+            if bpy.context.mode == 'EDIT_MESH':
+                bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.view_layer.objects.active = obj_export
+            obj_export.select_set(True)
+            set_normals(obj_export, my_props.normals)
+            export_fbx(obj_export, my_props.filepath, my_props.strip_instnum)
+        remove_collection(collection_export)
         return {'FINISHED'}
 
 
@@ -614,9 +689,10 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
 
 CLASSES = (
     MyProperties,
-    SHAPESHIFT_OT_export_mesh,
     SHAPESHIFT_OT_texture_mesh,
-    SHAPESHIFT_PT_texture_mesh
+    SHAPESHIFT_PT_texture_mesh,
+    SHAPESHIFT_OT_export_mesh,
+    SHAPESHIFT_PT_export_mesh,
 )
 
 
