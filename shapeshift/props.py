@@ -676,10 +676,10 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
                 [dest_collection_name, get_timestamp()]
             )
         create_collection(dest_collection_name)
-        mesh_collections = get_mesh_collections(prefix=prefix)
+        source_collections = get_mesh_collections(prefix=prefix)
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
-        for collection in mesh_collections:
+        for collection in source_collections:
             make_texture_mesh(collection, dest_collection_name)
 
         return {'FINISHED'}
