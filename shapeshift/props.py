@@ -47,12 +47,12 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row.prop(my_props, 'existing', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="")
-        row.prop(my_props, 'margin', text="UV Margin")
+        row.label(text="UV Margin")
+        row.prop(my_props, 'margin', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="")
-        row.prop(my_props, 'pivot', text="Pivot")
+        row.label(text="Pivot")
+        row.prop(my_props, 'pivot', text="")
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Texture")
@@ -79,16 +79,16 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row.prop(my_props, 'filepath', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="")
-        row.prop(my_props, 'normals', text="Normals")
+        row.label(text="Normals")
+        row.prop(my_props, 'normals', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="")
-        row.prop(my_props, 'pivot', text="Pivot")
+        row.label(text="Pivot")
+        row.prop(my_props, 'pivot', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="")
-        row.prop(my_props, 'strip_instnum', text="Strip Instance Number")
+        row.label(text="Strip Instance Number")
+        row.prop(my_props, 'strip_instnum', text="")
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
@@ -574,7 +574,16 @@ def set_normals(obj, state):
 
 
 def set_pivot(mesh_obj, pivot):
-    if pivot == "bbox":
+    """Set pivot point for mesh.
+
+    Args:
+        mesh_obj (bpy.types.Object): Mesh to set pivot.
+        pivot (str): Pivot point type.
+
+    Returns:
+        None
+    """
+    if pivot == "bbox":  # bounding box center
         mesh_data = mesh_obj.data
         M_world = mesh_obj.matrix_world
         data = (Vector(v) for v in mesh_obj.bound_box)
@@ -585,7 +594,7 @@ def set_pivot(mesh_obj, pivot):
         v = Matrix().inverted() @ v
         mesh_data.transform(Matrix.Translation(-v))
         M_world.translation = M_world @ v
-    elif pivot_point == "world":
+    elif pivot == "world":  # world origin
         bpy.context.scene.cursor.location = Vector((0.0, 0.0, 0.0))
         bpy.context.scene.cursor.rotation_euler = Vector((0.0, 0.0, 0.0))
         mesh_obj.origin_set(type='ORIGIN_CURSOR')
@@ -707,7 +716,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
             clones = clone_meshes(
                 [obj],
                 collection_export.name,
-                suffix="EXPORT"
+                suffix="EXPORT",
             )
             obj_export = clones[0]
             if bpy.context.mode == 'EDIT_MESH':
