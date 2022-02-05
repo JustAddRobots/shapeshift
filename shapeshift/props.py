@@ -576,7 +576,7 @@ def set_normals(obj, state):
 def set_pivot(mesh_obj, pivot):
     if pivot == "bbox":
         mesh_data = mesh_obj.data
-        M_world = mesh_object.matrix_world
+        M_world = mesh_obj.matrix_world
         data = (Vector(v) for v in mesh_obj.bound_box)
         coords = np.array([Matrix() @ v for v in data])
         z = coords.T[2]
@@ -656,6 +656,7 @@ class MyProperties(bpy.types.PropertyGroup):
         min=0,
         max=1,
         precision=2,
+        step=1
     )
     filepath: bpy.props.StringProperty(
         name="Export Folder",
