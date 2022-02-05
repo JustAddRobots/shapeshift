@@ -1,6 +1,10 @@
 import bpy
+import numpy as np
 from datetime import datetime
 from datetime import timezone
+from mathutils import Matrix
+from mathutils import Vector
+
 
 bl_info = {
     "name": "Shapeshift",
@@ -42,6 +46,14 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row.label(text="")
         row.prop(my_props, 'existing', text="")
 
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="")
+        row.prop(my_props, 'margin', text="UV Margin")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="")
+        row.prop(my_props, 'pivot', text="Pivot")
+
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Texture")
 
@@ -69,6 +81,10 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row = col.split(factor=title_pct, align=True)
         row.label(text="")
         row.prop(my_props, 'normals', text="Normals")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="")
+        row.prop(my_props, 'pivot', text="Pivot")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="")
@@ -162,8 +178,8 @@ def flatten_collection_to_mesh(collection):
     return cleaned_mesh
 
 
-def make_texture_mesh(collection, dest_collection_name):
-    """Make a collection of meshes into a mesh ready for export into UE4.
+def make_texture_mesh(collection, dest_collection_name, **kwargs):
+    """Make a collection of meshes into a single mesh ready for export into UE4.
 
     Collections are joined, cleaned, unwrapped, and textured with a
     Blender test grid. This will allow easy visual inspection of the mesh
@@ -173,11 +189,18 @@ def make_texture_mesh(collection, dest_collection_name):
         collection (bpy.types.Collection): Collection to texture.
         dest_collection_name (str): Name of destination collection for mesh.
 
+    Kwargs:
+        pivot (str): Mesh pivot point.
+        margin (float): UV island margin.
+
     Returns:
         mesh (bpy.types.Object): Textured mesh.
     """
+    pivot = kwargs.setdefault("pivot", "bbox")
+    margin = kwargs.setdefault("margin", 0.02)
     cloned_collection = clone_collection(collection)
     mesh = flatten_collection_to_mesh(cloned_collection)
+    set_pivot(mesh, pivot)
     move_mesh_to_collection(mesh, dest_collection_name)
     remove_collection(cloned_collection)
     if bpy.context.mode == 'EDIT_MESH':
@@ -185,7 +208,7 @@ def make_texture_mesh(collection, dest_collection_name):
     bpy.ops.object.select_all(action='DESELECT')
     mesh.select_set(True)
     remove_uv_maps(mesh)
-    unwrap_mesh(mesh)
+    unwrap_mesh(mesh, margin)
     image = create_test_grid()
     show_image_in_UV_editor(image)
     material = assign_material(mesh)
@@ -355,11 +378,12 @@ def remove_uv_maps(mesh_obj):
     return None
 
 
-def unwrap_mesh(mesh_obj):
+def unwrap_mesh(mesh_obj, uv_margin):
     """Unwrap Mesh.
 
     Args:
         mesh_object (bpy.types.Object): Mesh to UV unwrap.
+        uv_margin (float): UV island margin.
 
     Returns:
         None
@@ -368,7 +392,7 @@ def unwrap_mesh(mesh_obj):
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.unwrap(method='CONFORMAL', margin=0.03)
+    bpy.ops.uv.unwrap(method='CONFORMAL', margin=uv_margin)
     mesh_obj.data.uv_layers[0].name = f"UV_{mesh_obj.name}"
     return None
 
@@ -549,6 +573,27 @@ def set_normals(obj, state):
     return obj
 
 
+def set_pivot(mesh_obj, pivot):
+    if pivot == "bbox":
+        mesh_data = mesh_obj.data
+        M_world = mesh_object.matrix_world
+        data = (Vector(v) for v in mesh_obj.bound_box)
+        coords = np.array([Matrix() @ v for v in data])
+        z = coords.T[2]
+        mins = np.take(coords, np.where(z == z.min())[0], axis=0)
+        v = Vector(np.mean(mins, axis=0))
+        v = Matrix().inverted() @ v
+        mesh_data.transform(Matrix.Translation(-v))
+        M_world.translation = M_world @ v
+    elif pivot_point == "world":
+        bpy.context.scene.cursor.location = Vector((0.0, 0.0, 0.0))
+        bpy.context.scene.cursor.rotation_euler = Vector((0.0, 0.0, 0.0))
+        mesh_obj.origin_set(type='ORIGIN_CURSOR')
+    elif pivot == "current":
+        pass
+    return None
+
+
 def export_fbx(mesh_obj, export_dir, strip_instnum):
     """Export mesh.
 
@@ -605,6 +650,13 @@ class MyProperties(bpy.types.PropertyGroup):
         ],
         default="timestamp"
     )
+    margin: bpy.props.FloatProperty(
+        name="margin",
+        default=0.02,
+        min=0,
+        max=1,
+        precision=2,
+    )
     filepath: bpy.props.StringProperty(
         name="Export Folder",
         subtype='DIR_PATH',
@@ -622,6 +674,14 @@ class MyProperties(bpy.types.PropertyGroup):
             ("inside", "Inside", "All Inside", '', 3),
         ],
         default="current"
+    )
+    pivot: bpy.props.EnumProperty(
+        items=[
+            ("world", "World", "World Origin", '', 0),
+            ("bbox", "BBox", "Bounding Box Bottom", '', 1),
+            ("current", "Current", "Keep Current", '', 2),
+        ],
+        default="bbox"
     )
 
 
@@ -655,6 +715,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
             bpy.context.view_layer.objects.active = obj_export
             obj_export.select_set(True)
             set_normals(obj_export, my_props.normals)
+            set_pivot(obj_export, my_props.pivot)
             export_fbx(obj_export, my_props.filepath, my_props.strip_instnum)
         remove_collection(collection_export)
         return {'FINISHED'}
@@ -680,7 +741,12 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
         for collection in source_collections:
-            make_texture_mesh(collection, dest_collection_name)
+            make_texture_mesh(
+                collection,
+                dest_collection_name,
+                pivot=my_props.pivot,
+                margin=my_props.margin,
+            )
 
         return {'FINISHED'}
 
