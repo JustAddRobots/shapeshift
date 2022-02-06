@@ -171,7 +171,8 @@ def flatten_collection_to_mesh(collection):
         cleaned_mesh (bpy.types.Object): Joined and cleaned mesh.
     """
     mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
-    baked_objs = bake_scale(mesh_objs)
+    modded_objs = apply_mods(mesh_objs)
+    baked_objs = bake_scale(modded_objs)
     joined_mesh = join_mesh(baked_objs, collection.name)
     solid_mesh = solidify_mesh(joined_mesh)
     cleaned_mesh = clean_mesh(solid_mesh)
@@ -223,6 +224,9 @@ def clone_meshes(mesh_objs, collection_name, **kwargs):
         mesh_objs (list): Meshes to clone.
         collection_name (str): Collection into which meshes will be moved.
 
+    Kwargs:
+        suffix (str): Suffix for cloned mesh.
+
     Returns:
         cloned_meshes (list): Cloned meshes.
     """
@@ -235,6 +239,27 @@ def clone_meshes(mesh_objs, collection_name, **kwargs):
         cloned_meshes.append(clone)
         bpy.data.collections[collection_name].objects.link(clone)
     return cloned_meshes
+
+
+def apply_mods(objs):
+    """Apply all modifiers to object.
+
+    Args:
+        objs (list): Objects to apply mods.
+
+    Reurns:
+        modded_objs (list): Modded objects.
+    """
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    modded_objs = []
+    for obj in objs:
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        for mod in obj.modifiers:
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            modded_objs.append(obj)
+    return modded_objs
 
 
 def bake_scale(objs):
@@ -608,7 +633,7 @@ def snap_to_origin(mesh_obj):
         bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
     bpy.context.view_layer.objects.active = mesh_obj
-    obj_export.select_set(True)
+    mesh_obj.select_set(True)
     bpy.context.scene.cursor.location = Vector((0.0, 0.0, 0.0))
     bpy.ops.view3d.snap_selected_to_cursor()
     return None
@@ -620,6 +645,7 @@ def export_fbx(mesh_obj, export_dir, strip_instnum):
     Args:
         mesh_obj (bpy.types.Object): Mesh to export.
         export_dir (str): Export directory (absolute).
+        strip_instnum (bool): Strip Blender mesh instance suffix.
 
     Returns:
         None
