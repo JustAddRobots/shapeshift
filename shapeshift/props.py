@@ -255,10 +255,14 @@ def apply_mods(objs):
     modded_objs = []
     for obj in objs:
         bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
         for mod in obj.modifiers:
-            bpy.ops.object.modifier_apply(modifier=mod.name)
-            modded_objs.append(obj)
+            bpy.ops.object.modifier_apply(
+                modifier=mod.name,
+                report=True
+            )
+        modded_objs.append(obj)
     return modded_objs
 
 
