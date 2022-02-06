@@ -603,6 +603,17 @@ def set_pivot(mesh_obj, pivot):
     return None
 
 
+def snap_to_origin(mesh_obj):
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = mesh_obj
+    obj_export.select_set(True)
+    bpy.context.scene.cursor.location = Vector((0.0, 0.0, 0.0))
+    bpy.ops.view3d.snap_selected_to_cursor()
+    return None
+
+
 def export_fbx(mesh_obj, export_dir, strip_instnum):
     """Export mesh.
 
@@ -727,6 +738,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
             obj_export.select_set(True)
             set_normals(obj_export, my_props.normals)
             set_pivot(obj_export, my_props.pivot)
+            snap_to_origin(obj_export)
             export_fbx(obj_export, my_props.filepath, my_props.strip_instnum)
         remove_collection(collection_export)
         return {'FINISHED'}
