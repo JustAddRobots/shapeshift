@@ -635,6 +635,7 @@ def export_fbx(mesh_obj, export_dir, strip_instnum):
         use_space_transform=True,
         object_types={'MESH'},
         use_mesh_modifiers=True,
+        mesh_smooth_type='FACE',
         path_mode='AUTO',
         batch_mode='OFF',
         axis_forward='-Z',
