@@ -74,6 +74,7 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
 
         col = layout.column(align=True)
         title_pct = 0.3
+        boolean_pct = 0.7
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Export Dir")
@@ -87,11 +88,11 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row.label(text="Pivot")
         row.prop(my_props, 'pivot', text="")
 
-        row = col.split(factor=title_pct, align=True)
+        row = col.split(factor=boolean_pct, align=True)
         row.label(text="Strip Instance Number")
         row.prop(my_props, 'strip_instnum', text="")
 
-        row = col.split(factor=title_pct, align=True)
+        row = col.split(factor=boolean_pct, align=True)
         row.label(text="Enable Scene Export")
         row.prop(my_props, 'export_scene', text="")
 
