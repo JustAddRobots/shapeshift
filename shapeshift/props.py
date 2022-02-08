@@ -91,6 +91,10 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row.label(text="Strip Instance Number")
         row.prop(my_props, 'strip_instnum', text="")
 
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Enable Scene Export")
+        row.prop(my_props, 'export_scene', text="")
+
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
 
@@ -733,6 +737,10 @@ class MyProperties(bpy.types.PropertyGroup):
         name="Strip Inst Num",
         default=True
     )
+    export_scene: bpy.props.BoolProperty(
+        name="Enable Scene Export",
+        default=False
+    )
     normals: bpy.props.EnumProperty(
         items=[
             ("current", "Current", "Keep Current", '', 0),
@@ -761,32 +769,44 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
         scene = context.scene
         my_props = scene.myprops
         sel_objs = bpy.context.selected_objects
+        mesh_objs = []
         if len(sel_objs) > 0:
             mesh_objs = [obj for obj in sel_objs if obj.type == 'MESH']
+        elif (
+            bpy.context.collection.name == "Scene Collection"
+            and my_props.export_scene is False
+        ):
+            self.report({'INFO'}, "Export Scene Collection Disabled")
         else:
-            collection = bpy.context.collection
             mesh_objs = [
                 obj for obj in collection.all_objects if obj.type == 'MESH'
             ]
-        collection_export = create_collection(f"EXPORT-{get_timestamp()}")
-        for obj in mesh_objs:
-            clones = clone_meshes(
-                [obj],
-                collection_export.name,
-                suffix="EXPORT",
-            )
-            obj_export = clones[0]
-            if bpy.context.mode == 'EDIT_MESH':
-                bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.select_all(action='DESELECT')
-            bpy.context.view_layer.objects.active = obj_export
-            obj_export.select_set(True)
-            set_normals(obj_export, my_props.normals)
-            set_pivot(obj_export, my_props.pivot)
-            snap_to_origin(obj_export)
-            export_fbx(obj_export, my_props.filepath, my_props.strip_instnum)
-        remove_collection(collection_export)
-        self.report({'INFO'}, "Export Complete")
+
+        if len(mesh_objs) > 0:
+            collection_export = create_collection(f"EXPORT-{get_timestamp()}")
+            for i, obj in enumerate(mesh_objs):
+                update_progress("Exporting Meshes", i / 100.0)
+                clones = clone_meshes(
+                    [obj],
+                    collection_export.name,
+                    suffix="EXPORT",
+                )
+                obj_export = clones[0]
+                if bpy.context.mode == 'EDIT_MESH':
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.context.view_layer.objects.active = obj_export
+                obj_export.select_set(True)
+                set_normals(obj_export, my_props.normals)
+                set_pivot(obj_export, my_props.pivot)
+                snap_to_origin(obj_export)
+                export_fbx(
+                    obj_export,
+                    my_props.filepath,
+                    my_props.strip_instnum
+                )
+            remove_collection(collection_export)
+            self.report({'INFO'}, "Export Complete")
         return {'FINISHED'}
 
 
@@ -810,14 +830,14 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
         for i, collection in enumerate(source_collections):
+            update_progress("Texturing Meshes", i / 100.0)
             make_texture_mesh(
                 collection,
                 dest_collection_name,
                 pivot=my_props.pivot,
                 margin=my_props.margin,
             )
-            update_progress("Texturing Meshes", i / 100.0)
-        self.report({'INFO'}, "Texturing Meshes Complete")
+        self.report({'INFO'}, "Texture Complete")
         return {'FINISHED'}
 
 
