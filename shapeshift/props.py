@@ -33,7 +33,7 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         my_props = scene.myprops
 
         col = layout.column(align=True)
-        title_pct = 0.3
+        title_pct = 0.4
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Prefix")
@@ -49,15 +49,11 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="UV Margin")
-        row.prop(my_props, 'margin_uv', text="")
+        row.prop(my_props, 'uv_margin', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="LM Margin")
-        row.prop(my_props, 'margin_lm', text="")
-
-        row = col.split(factor=title_pct, align=True)
-        row.label(text="LM Pack Quality")
-        row.prop(my_props, 'lm_pack_qual', text="")
+        row.label(text="Lightmap Size")
+        row.prop(my_props, 'lightmap_size', text="")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Pivot")
@@ -218,15 +214,14 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
 
     Kwargs:
         pivot (str): Mesh pivot point.
-        margin_uv (float): UV island margin.
+        uv_margin (float): UV island margin.
 
     Returns:
         mesh (bpy.types.Object): Textured mesh.
     """
     pivot = kwargs.setdefault("pivot", "bbox")
-    margin_uv = kwargs.setdefault("margin_uv", 0.02)
-    margin_lm = kwargs.setdefault("margin_lm", 0.5)
-    lm_pack_qual = kwargs.setdefault("lm_pack_qual", 32)
+    uv_margin = kwargs.setdefault("uv_margin", 0.02)
+    lightmap_size = kwargs.setdefault("lightmap_size", 128)
     cloned_collection = clone_collection(collection)
     mesh = flatten_collection_to_mesh(cloned_collection)
     set_pivot(mesh, pivot)
@@ -237,8 +232,9 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
     bpy.ops.object.select_all(action='DESELECT')
     mesh.select_set(True)
     remove_uv_maps(mesh)
-    unwrap_mesh(mesh, margin_uv)
-    pack_lightmap(mesh, margin_lm, lm_pack_qual)
+    make_uv_map(mesh, uv_margin=uv_margin)  # Texture UVs
+    make_uv_map(mesh, lightmap_size=lightmap_size)  # Lightmap UVs
+    mesh = clean_mesh(mesh)  # unwrap adds vertices
     image = create_test_grid()
     show_image_in_UV_editor(image)
     material = assign_material(mesh)
@@ -363,7 +359,7 @@ def solidify_mesh(obj):
     mod.solidify_mode = 'NON_MANIFOLD'
     mod.nonmanifold_thickness_mode = 'EVEN'
     mod.use_quality_normals = True
-    mod.thickness = 0.001
+    mod.thickness = 0.01
     return obj
 
 
@@ -378,15 +374,15 @@ def clean_mesh(obj):
     Returns:
         obj (bpy.types.Object): Cleaned mesh.
     """
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
     bpy.context.view_layer.objects.active = obj
     obj.select_set(True)
+    bpy.ops.object.transform_apply()
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.remove_doubles()
-    if bpy.context.mode == 'EDIT_MESH':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.transform_apply()
     return obj
 
 
@@ -437,12 +433,15 @@ def remove_uv_maps(mesh_obj):
     return None
 
 
-def unwrap_mesh(mesh_obj, margin_uv):
-    """Unwrap Mesh.
+def make_uv_map(mesh_obj, **kwargs):
+    """UV unwrap mesh.
 
     Args:
         mesh_object (bpy.types.Object): Mesh to UV unwrap.
-        margin_uv (float): UV island margin.
+
+    Kwargs:
+        lightmap_size (int): Lightmap size.
+        uv_margin (float): UV island margin.
 
     Returns:
         None
@@ -451,25 +450,24 @@ def unwrap_mesh(mesh_obj, margin_uv):
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.unwrap(method='CONFORMAL', margin=_margin_uv)
-    mesh_obj.data.uv_layers[0].name = f"UV_{mesh_obj.name}"
-    return None
-
-
-def pack_lightmap(mesh_obj, margin_lm, lm_pack_qual):
-    bpy.context.view_layer.objects.active = mesh_obj
-    if bpy.context.mode == 'OBJECT':
-        bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.select_all(action='SELECT')
-    layer_name = f"LM_{mesh_obj.name}"
-    lm = mesh_obj.data.uv_layers.get(layer_name)
-    if not lm:
-        lm = mesh_obj.data.uv_layers.new(name=layer_name)
-    lm.active = True
-    bpy.ops.uv.lightmap_pack(
-        PREF_CONTEXT = 'SEL_FACES',
-        PREF_BOX_DIV = lm_pack_qual,
-        PREF_MARGIN_DIV = margin_lm,
+    if "lightmap_size" in kwargs.keys():
+        prefix = "LM"
+        margin = round(1.0 / kwargs["lightmap_size"] * 2, 3)
+        bpy.ops.mesh.mark_seam(clear=True)
+        bpy.ops.mesh.mark_seam()
+    elif "uv_margin" in kwargs.keys():
+        prefix = "UV"
+        margin = kwargs["uv_margin"]
+    layer_name = f"{prefix}_{mesh_obj.name}"
+    layer = mesh_obj.data.uv_layers.get(layer_name)
+    if not layer:
+        layer = mesh_obj.data.uv_layers.new(name=layer_name)
+    layer.active = True
+    bpy.ops.uv.unwrap(
+        method = 'CONFORMAL',
+        margin = margin,
+        correct_aspect = True,
+        fill_holes = False,
     )
     return None
 
@@ -763,28 +761,27 @@ class MyProperties(bpy.types.PropertyGroup):
         ],
         default="timestamp"
     )
-    margin_uv: bpy.props.FloatProperty(
-        name="margin_uv",
+    thickness: bpy.props.FloatProperty(
+        name="thickness",
         default=0.02,
         min=0,
         max=1,
         precision=2,
         step=1
     )
-    margin_lm: bpy.props.FloatProperty(
-        name="margin_lm",
-        default=0.5,
-        min=0.01,
+    uv_margin: bpy.props.FloatProperty(
+        name="uv_margin",
+        default=0.02,
+        min=0,
         max=1,
         precision=2,
         step=1
     )
-    lm_pack_qual: bpy.props.IntProperty(
-        name="lm_pack_qual",
-        default=32,
-        min=1,
-        max=48,
-        step=1
+    lightmap_size: bpy.props.IntProperty(
+        name="lightmap_size",
+        default=128,
+        min=64,
+        max=1024,
     )
     filepath: bpy.props.StringProperty(
         name="Export Folder",
@@ -844,9 +841,8 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
                 collection,
                 dest_collection_name,
                 pivot=my_props.pivot,
-                margin_uv=my_props.margin_uv,
-                margin_lm=my_props.margin_lm,
-                lm_pack_qual=my_props.lm_pack_qual,
+                uv_margin=my_props.uv_margin,
+                lightmap_size=my_props.lightmap_size,
             )
         self.report({'INFO'}, "Texture Complete")
         return {'FINISHED'}
@@ -871,7 +867,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
             self.report({'INFO'}, "Export Scene Collection Disabled")
         else:
             mesh_objs = [
-                obj for obj in collection.all_objects if obj.type == 'MESH'
+                obj for obj in bpy.context.collection.all_objects if obj.type == 'MESH'
             ]
 
         if len(mesh_objs) > 0:
