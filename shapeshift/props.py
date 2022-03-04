@@ -1,5 +1,6 @@
 import bpy
 import numpy as np
+import sys
 from datetime import datetime
 from datetime import timezone
 from mathutils import Matrix
@@ -32,7 +33,7 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         my_props = scene.myprops
 
         col = layout.column(align=True)
-        title_pct = 0.3
+        title_pct = 0.4
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Prefix")
@@ -48,7 +49,11 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="UV Margin")
-        row.prop(my_props, 'margin', text="")
+        row.prop(my_props, 'uv_margin', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Lightmap Size")
+        row.prop(my_props, 'lightmap_size', text="")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Pivot")
@@ -73,6 +78,7 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
 
         col = layout.column(align=True)
         title_pct = 0.3
+        boolean_pct = 0.90
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Export Dir")
@@ -86,9 +92,13 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row.label(text="Pivot")
         row.prop(my_props, 'pivot', text="")
 
-        row = col.split(factor=title_pct, align=True)
+        row = col.split(factor=boolean_pct, align=True)
         row.label(text="Strip Instance Number")
         row.prop(my_props, 'strip_instnum', text="")
+
+        row = col.split(factor=boolean_pct, align=True)
+        row.label(text="Enable Scene Export")
+        row.prop(my_props, 'export_scene', text="")
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
@@ -137,6 +147,18 @@ def get_mesh_collections(**kwargs):
     mesh_collections = [
         collection for collection in bpy.data.collections
         if collection.name.startswith(prefix)
+    ]
+    return mesh_collections
+
+
+def get_selected_collections(**kwargs):
+    prefix = kwargs.setdefault("prefix", "SM_")
+    mesh_collections = [
+        collection for selected in bpy.context.selected_ids
+        if (
+            isinstance(selected, bpy.types.Collection)
+            and selected.name.startswith(prefix)
+        )
     ]
     return mesh_collections
 
@@ -192,13 +214,14 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
 
     Kwargs:
         pivot (str): Mesh pivot point.
-        margin (float): UV island margin.
+        uv_margin (float): UV island margin.
 
     Returns:
         mesh (bpy.types.Object): Textured mesh.
     """
     pivot = kwargs.setdefault("pivot", "bbox")
-    margin = kwargs.setdefault("margin", 0.02)
+    uv_margin = kwargs.setdefault("uv_margin", 0.02)
+    lightmap_size = kwargs.setdefault("lightmap_size", 128)
     cloned_collection = clone_collection(collection)
     mesh = flatten_collection_to_mesh(cloned_collection)
     set_pivot(mesh, pivot)
@@ -209,7 +232,9 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
     bpy.ops.object.select_all(action='DESELECT')
     mesh.select_set(True)
     remove_uv_maps(mesh)
-    unwrap_mesh(mesh, margin)
+    make_uv_map(mesh, uv_margin=uv_margin)  # Texture UVs
+    make_uv_map(mesh, lightmap_size=lightmap_size)  # Lightmap UVs
+    mesh = clean_mesh(mesh)  # unwrap adds vertices
     image = create_test_grid()
     show_image_in_UV_editor(image)
     material = assign_material(mesh)
@@ -334,14 +359,14 @@ def solidify_mesh(obj):
     mod.solidify_mode = 'NON_MANIFOLD'
     mod.nonmanifold_thickness_mode = 'EVEN'
     mod.use_quality_normals = True
-    mod.thickness = 0.001
+    mod.thickness = 0.01
     return obj
 
 
 def clean_mesh(obj):
     """Clean up static mesh.
 
-    Removes duplicate verticies, applies transformations.
+    Removes duplicate vertices, applies transformations.
 
     Args:
         obj (bpy.types.Object): Mesh to clean up.
@@ -349,14 +374,15 @@ def clean_mesh(obj):
     Returns:
         obj (bpy.types.Object): Cleaned mesh.
     """
+    if bpy.context.mode == 'EDIT_MESH':
+        bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = obj
     obj.select_set(True)
+    bpy.ops.object.transform_apply()
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.remove_doubles()
-    if bpy.context.mode == 'EDIT_MESH':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.transform_apply()
     return obj
 
 
@@ -407,11 +433,14 @@ def remove_uv_maps(mesh_obj):
     return None
 
 
-def unwrap_mesh(mesh_obj, uv_margin):
-    """Unwrap Mesh.
+def make_uv_map(mesh_obj, **kwargs):
+    """UV unwrap mesh.
 
     Args:
         mesh_object (bpy.types.Object): Mesh to UV unwrap.
+
+    Kwargs:
+        lightmap_size (int): Lightmap size.
         uv_margin (float): UV island margin.
 
     Returns:
@@ -421,8 +450,25 @@ def unwrap_mesh(mesh_obj, uv_margin):
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.unwrap(method='CONFORMAL', margin=uv_margin)
-    mesh_obj.data.uv_layers[0].name = f"UV_{mesh_obj.name}"
+    if "lightmap_size" in kwargs.keys():
+        prefix = "LM"
+        margin = round(1.0 / kwargs["lightmap_size"] * 2, 3)
+        bpy.ops.mesh.mark_seam(clear=True)
+        bpy.ops.mesh.mark_seam()
+    elif "uv_margin" in kwargs.keys():
+        prefix = "UV"
+        margin = kwargs["uv_margin"]
+    layer_name = f"{prefix}_{mesh_obj.name}"
+    layer = mesh_obj.data.uv_layers.get(layer_name)
+    if not layer:
+        layer = mesh_obj.data.uv_layers.new(name=layer_name)
+    layer.active = True
+    bpy.ops.uv.unwrap(
+        method = 'CONFORMAL',
+        margin = margin,
+        correct_aspect = True,
+        fill_holes = False,
+    )
     return None
 
 
@@ -685,6 +731,20 @@ def export_fbx(mesh_obj, export_dir, strip_instnum):
     return None
 
 
+def update_progress(task_name, progress):
+    length = 20
+    block = int(round(length * progress))
+    msg = (
+        f"\r{task_name}: {'#' * block + '-' * (length - block)} "
+        f"{round(progress * 100, 2)}"
+    )
+    if progress >= 1:
+        msg += " DONE\r\n"
+    sys.stdout.write(msg)
+    sys.stdout.flush()
+    return None
+
+
 class MyProperties(bpy.types.PropertyGroup):
     prefix: bpy.props.StringProperty(
         name="Prefix",
@@ -701,13 +761,27 @@ class MyProperties(bpy.types.PropertyGroup):
         ],
         default="timestamp"
     )
-    margin: bpy.props.FloatProperty(
-        name="margin",
+    thickness: bpy.props.FloatProperty(
+        name="thickness",
         default=0.02,
         min=0,
         max=1,
         precision=2,
         step=1
+    )
+    uv_margin: bpy.props.FloatProperty(
+        name="uv_margin",
+        default=0.02,
+        min=0,
+        max=1,
+        precision=2,
+        step=1
+    )
+    lightmap_size: bpy.props.IntProperty(
+        name="lightmap_size",
+        default=128,
+        min=64,
+        max=1024,
     )
     filepath: bpy.props.StringProperty(
         name="Export Folder",
@@ -717,6 +791,10 @@ class MyProperties(bpy.types.PropertyGroup):
     strip_instnum: bpy.props.BoolProperty(
         name="Strip Inst Num",
         default=True
+    )
+    export_scene: bpy.props.BoolProperty(
+        name="Enable Scene Export",
+        default=False
     )
     normals: bpy.props.EnumProperty(
         items=[
@@ -737,43 +815,6 @@ class MyProperties(bpy.types.PropertyGroup):
     )
 
 
-class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
-    """Export Mesh"""
-    bl_label = "Export Mesh"
-    bl_idname = "shapeshift.export_mesh"
-
-    def execute(self, context):
-        scene = context.scene
-        my_props = scene.myprops
-        sel_objs = bpy.context.selected_objects
-        if len(sel_objs) > 0:
-            mesh_objs = [obj for obj in sel_objs if obj.type == 'MESH']
-        else:
-            collection = bpy.context.collection
-            mesh_objs = [
-                obj for obj in collection.all_objects if obj.type == 'MESH'
-            ]
-        collection_export = create_collection(f"EXPORT-{get_timestamp()}")
-        for obj in mesh_objs:
-            clones = clone_meshes(
-                [obj],
-                collection_export.name,
-                suffix="EXPORT",
-            )
-            obj_export = clones[0]
-            if bpy.context.mode == 'EDIT_MESH':
-                bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.select_all(action='DESELECT')
-            bpy.context.view_layer.objects.active = obj_export
-            obj_export.select_set(True)
-            set_normals(obj_export, my_props.normals)
-            set_pivot(obj_export, my_props.pivot)
-            snap_to_origin(obj_export)
-            export_fbx(obj_export, my_props.filepath, my_props.strip_instnum)
-        remove_collection(collection_export)
-        return {'FINISHED'}
-
-
 class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
     """Texture Mesh"""
     bl_label = "Texture Mesh"
@@ -791,16 +832,69 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
             )
         create_collection(dest_collection_name)
         source_collections = get_mesh_collections(prefix=prefix)
+        # source_collections = get_selected_collections(prefix=prefix)
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
-        for collection in source_collections:
+        for i, collection in enumerate(source_collections):
+            update_progress("Texturing Meshes", i / 100.0)
             make_texture_mesh(
                 collection,
                 dest_collection_name,
                 pivot=my_props.pivot,
-                margin=my_props.margin,
+                uv_margin=my_props.uv_margin,
+                lightmap_size=my_props.lightmap_size,
             )
+        self.report({'INFO'}, "Texture Complete")
+        return {'FINISHED'}
 
+
+class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
+    """Export Mesh"""
+    bl_label = "Export Mesh"
+    bl_idname = "shapeshift.export_mesh"
+
+    def execute(self, context):
+        scene = context.scene
+        my_props = scene.myprops
+        sel_objs = bpy.context.selected_objects
+        mesh_objs = []
+        if len(sel_objs) > 0:
+            mesh_objs = [obj for obj in sel_objs if obj.type == 'MESH']
+        elif (
+            bpy.context.collection.name == "Scene Collection"
+            and my_props.export_scene is False
+        ):
+            self.report({'INFO'}, "Export Scene Collection Disabled")
+        else:
+            mesh_objs = [
+                obj for obj in bpy.context.collection.all_objects if obj.type == 'MESH'
+            ]
+
+        if len(mesh_objs) > 0:
+            collection_export = create_collection(f"EXPORT-{get_timestamp()}")
+            for i, obj in enumerate(mesh_objs):
+                update_progress("Exporting Meshes", i / 100.0)
+                clones = clone_meshes(
+                    [obj],
+                    collection_export.name,
+                    suffix="EXPORT",
+                )
+                obj_export = clones[0]
+                if bpy.context.mode == 'EDIT_MESH':
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.context.view_layer.objects.active = obj_export
+                obj_export.select_set(True)
+                set_normals(obj_export, my_props.normals)
+                set_pivot(obj_export, my_props.pivot)
+                snap_to_origin(obj_export)
+                export_fbx(
+                    obj_export,
+                    my_props.filepath,
+                    my_props.strip_instnum
+                )
+            remove_collection(collection_export)
+            self.report({'INFO'}, "Export Complete")
         return {'FINISHED'}
 
 
