@@ -39,7 +39,8 @@ class SHAPESHIFT_PT_assign_seam(bpy.types.Panel):
         row.label(text="Vertex Group")
         row.prop(my_props, 'vg_name', text="")
 
-        row.operator(SHAPESHIFT_OT_assign_seam_panel.bl_idname, text="Assign")
+        row = col.row(align=True)
+        row.operator(SHAPESHIFT_OT_assign_seam.bl_idname, text="Assign")
 
 
 class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
@@ -728,15 +729,15 @@ def assign_seam_to_vertex_groups(target_vg_name):
     bpy.ops.object.mode_set(mode='OBJECT')
     for mesh_obj in seamed_meshes:
         bpy.context.view_layer.objects.active = mesh_obj
-        selected_verts = [v.index for v in mesh.obj.data.vertices if v.select]
+        selected_verts = [v.index for v in mesh_obj.data.vertices if v.select]
         vert_groups = {}
         for vg in mesh_obj.vertex_groups:
             vert_groups[vg.name] = vg
 
         if target_vg_name not in vert_groups.keys():
-            vert_groups[target_vg_name] = mesh_obj.vertex_group_add(target_vg_name)
+            vert_groups[target_vg_name] = mesh_obj.vertex_groups.new(name=target_vg_name)
 
-        mesh_obj.vertex_group_set_active(target_vg_name)
+        bpy.ops.object.vertex_group_set_active(group=target_vg_name)
         active_index = mesh_obj.vertex_groups.active_index
         vg = mesh_obj.vertex_groups[active_index]
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -823,7 +824,7 @@ class MyProperties(bpy.types.PropertyGroup):
     )
     thickness: bpy.props.FloatProperty(
         name="thickness",
-        default=0.02,
+        default=0.004,
         min=0,
         max=1,
         precision=2,
@@ -883,7 +884,7 @@ class SHAPESHIFT_OT_assign_seam(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         my_props = scene.myprops
-        vg_name = my_props.prefix
+        vg_name = my_props.vg_name
         assign_seam_to_vertex_groups(vg_name)
 
         self.report({'INFO'}, "Assign Complete")
