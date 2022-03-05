@@ -19,6 +19,29 @@ bl_info = {
 }
 
 
+class SHAPESHIFT_PT_assign_seam(bpy.types.Panel):
+    """Assign Seam Panel"""
+    bl_label = "Assign Seam"
+    bl_idname = "shapeshift.assign_seam_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = 'UI'
+    bl_category = "Shapeshift"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        my_props = scene.myprops
+
+        col = layout.column(align=True)
+        title_pct = 0.4
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Vertex Group")
+        row.prop(my_props, 'vg_name', text="")
+
+        row.operator(SHAPESHIFT_OT_assign_seam_panel.bl_idname, text="Assign")
+
+
 class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
     """Texture Mesh Panel"""
     bl_label = "Texture Mesh"
@@ -46,6 +69,10 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row = col.split(factor=title_pct, align=True)
         row.label(text="")
         row.prop(my_props, 'existing', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Thickness")
+        row.prop(my_props, 'thickness', text="")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="UV Margin")
@@ -183,7 +210,7 @@ def clone_collection(collection, **kwargs):
     return cloned_collection
 
 
-def flatten_collection_to_mesh(collection):
+def flatten_collection_to_mesh(collection, **kwargs):
     """Flatten collection to similarly-named joined and cleaned up mesh.
 
     Args:
@@ -192,11 +219,12 @@ def flatten_collection_to_mesh(collection):
     Returns:
         cleaned_mesh (bpy.types.Object): Joined and cleaned mesh.
     """
+    thickness = kwargs.setdefault("thickness", 0.04)
     mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
     modded_objs = apply_mods(mesh_objs)
     baked_objs = bake_scale(modded_objs)
     joined_mesh = join_mesh(baked_objs, collection.name)
-    solid_mesh = solidify_mesh(joined_mesh)
+    solid_mesh = solidify_mesh(joined_mesh, thickness=thickness)
     cleaned_mesh = clean_mesh(solid_mesh)
     return cleaned_mesh
 
@@ -220,10 +248,11 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
         mesh (bpy.types.Object): Textured mesh.
     """
     pivot = kwargs.setdefault("pivot", "bbox")
+    thickness = kwargs.setdefault("thickness", 0.04)
     uv_margin = kwargs.setdefault("uv_margin", 0.02)
     lightmap_size = kwargs.setdefault("lightmap_size", 128)
     cloned_collection = clone_collection(collection)
-    mesh = flatten_collection_to_mesh(cloned_collection)
+    mesh = flatten_collection_to_mesh(cloned_collection, thickness=thickness)
     set_pivot(mesh, pivot)
     move_mesh_to_collection(mesh, dest_collection_name)
     remove_collection(cloned_collection)
@@ -344,7 +373,7 @@ def join_mesh(mesh_objs, joined_name):
     return joined_obj
 
 
-def solidify_mesh(obj):
+def solidify_mesh(obj, **kwargs):
     """Add solidify modifier to mesh.
 
     Args:
@@ -353,13 +382,14 @@ def solidify_mesh(obj):
     Returns:
         obj (bpy.types.Object): Solidified mesh..
     """
+    thickness = kwargs.setdefault("thickness", 0.004)
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
     mod = obj.modifiers.new("Solidify", 'SOLIDIFY')
     mod.solidify_mode = 'NON_MANIFOLD'
     mod.nonmanifold_thickness_mode = 'EVEN'
     mod.use_quality_normals = True
-    mod.thickness = 0.01
+    mod.thickness = thickness
     return obj
 
 
@@ -689,6 +719,32 @@ def snap_to_origin(mesh_obj):
     return None
 
 
+def assign_seam_to_vertex_groups(target_vg_name):
+    mode = bpy.context.active_object.mode
+    if bpy.context.mode == 'OBJECT':
+        bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_similar(type='SEAM')
+    seamed_meshes = bpy.context.selected_objects
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for mesh_obj in seamed_meshes:
+        bpy.context.view_layer.objects.active = mesh_obj
+        selected_verts = [v.index for v in mesh.obj.data.vertices if v.select]
+        vert_groups = {}
+        for vg in mesh_obj.vertex_groups:
+            vert_groups[vg.name] = vg
+
+        if target_vg_name not in vert_groups.keys():
+            vert_groups[target_vg_name] = mesh_obj.vertex_group_add(target_vg_name)
+
+        mesh_obj.vertex_group_set_active(target_vg_name)
+        active_index = mesh_obj.vertex_groups.active_index
+        vg = mesh_obj.vertex_groups[active_index]
+        bpy.ops.object.mode_set(mode='OBJECT')
+        vg.add(selected_verts, 1.0, 'ADD')
+    bpy.ops.object.mode_set(mode=mode)
+    return None
+
+
 def export_fbx(mesh_obj, export_dir, strip_instnum):
     """Export mesh.
 
@@ -746,6 +802,10 @@ def update_progress(task_name, progress):
 
 
 class MyProperties(bpy.types.PropertyGroup):
+    vg_name: bpy.props.StringProperty(
+        name="Volume Group",
+        default="SEAM_UV"
+    )
     prefix: bpy.props.StringProperty(
         name="Prefix",
         default="SM_"
@@ -815,6 +875,21 @@ class MyProperties(bpy.types.PropertyGroup):
     )
 
 
+class SHAPESHIFT_OT_assign_seam(bpy.types.Operator):
+    """Assign Seam"""
+    bl_label = "Assign Seam"
+    bl_idname = "shapeshift.assign_seam"
+
+    def execute(self, context):
+        scene = context.scene
+        my_props = scene.myprops
+        vg_name = my_props.prefix
+        assign_seam_to_vertex_groups(vg_name)
+
+        self.report({'INFO'}, "Assign Complete")
+        return {'FINISHED'}
+
+
 class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
     """Texture Mesh"""
     bl_label = "Texture Mesh"
@@ -840,9 +915,10 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
             make_texture_mesh(
                 collection,
                 dest_collection_name,
-                pivot=my_props.pivot,
-                uv_margin=my_props.uv_margin,
-                lightmap_size=my_props.lightmap_size,
+                pivot = my_props.pivot,
+                thickness = my_props.thickness,
+                uv_margin = my_props.uv_margin,
+                lightmap_size = my_props.lightmap_size,
             )
         self.report({'INFO'}, "Texture Complete")
         return {'FINISHED'}
@@ -906,6 +982,8 @@ CLASSES = (
     SHAPESHIFT_PT_texture_mesh,
     SHAPESHIFT_OT_export_mesh,
     SHAPESHIFT_PT_export_mesh,
+    SHAPESHIFT_OT_assign_seam,
+    SHAPESHIFT_PT_assign_seam,
 )
 
 
