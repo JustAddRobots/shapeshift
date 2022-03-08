@@ -36,8 +36,8 @@ class SHAPESHIFT_PT_assign_seam(bpy.types.Panel):
         title_pct = 0.4
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="Vertex Group")
-        row.prop(my_props, 'vg_name', text="")
+        row.label(text="UV Seam Set")
+        row.prop(my_props, 'seamset_name', text="")
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_assign_seam.bl_idname, text="Assign")
@@ -720,6 +720,30 @@ def snap_to_origin(mesh_obj):
     return None
 
 
+def get_seamset(seamset_name):
+    mode = bpy.context.active_object.mode
+    if bpy.context.mode == 'OBJECT':
+        bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_similar(type='SEAM')
+    seamed_meshes = bpy.context.selected_objects
+    seamset = set()
+    for mesh_obj in seamed_meshes:
+        bm = bmesh.new()
+        bm.from_edit_mesh(mesh_obj.data)
+        bm.edges.ensure_lookup_table()
+        layer = (
+            bm.edges.layers.int.get(seamset_name)
+            or bm.edges.layers.int.new(seamset_name)
+        )
+        seams = {edge.index for edge in bm.edges if edge.seam}
+        seamset.update(seams)
+        layer = seams  # noqa
+        bmesh.update_edit_mesh(mesh_obj.data)
+        bm.free()
+    bpy.ops.object.mode_set(mode=mode)
+    return seamset
+
+
 def assign_seam_to_vertex_groups(target_vg_name):
     mode = bpy.context.active_object.mode
     if bpy.context.mode == 'OBJECT':
@@ -729,7 +753,7 @@ def assign_seam_to_vertex_groups(target_vg_name):
     bpy.ops.object.mode_set(mode='OBJECT')
     for mesh_obj in seamed_meshes:
         bpy.context.view_layer.objects.active = mesh_obj
-        selected_verts = [v.index for v in mesh_obj.data.vertices if v.select]
+        selected_edges = [e.index for e in mesh_obj.data.edges if e.select]  # noqa
         vert_groups = {}
         for vg in mesh_obj.vertex_groups:
             vert_groups[vg.name] = vg
@@ -740,8 +764,7 @@ def assign_seam_to_vertex_groups(target_vg_name):
         bpy.ops.object.vertex_group_set_active(group=target_vg_name)
         active_index = mesh_obj.vertex_groups.active_index
         vg = mesh_obj.vertex_groups[active_index]
-        bpy.ops.object.mode_set(mode='OBJECT')
-        vg.add(selected_verts, 1.0, 'ADD')
+        # vg.add(selected_edges, 1.0, 'ADD')
     bpy.ops.object.mode_set(mode=mode)
     return None
 
@@ -803,9 +826,13 @@ def update_progress(task_name, progress):
 
 
 class MyProperties(bpy.types.PropertyGroup):
-    vg_name: bpy.props.StringProperty(
-        name="Volume Group",
+    seamset_name: bpy.props.StringProperty(
+        name="UV Seam Set",
         default="SEAM_UV"
+    )
+    seamsets: bpy.props.CollectionProperty(
+        name="UV Seam Sets",
+        type=set,
     )
     prefix: bpy.props.StringProperty(
         name="Prefix",
@@ -827,7 +854,7 @@ class MyProperties(bpy.types.PropertyGroup):
         default=0.004,
         min=0,
         max=1,
-        precision=2,
+        precision=3,
         step=1
     )
     uv_margin: bpy.props.FloatProperty(
@@ -884,9 +911,10 @@ class SHAPESHIFT_OT_assign_seam(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         my_props = scene.myprops
-        vg_name = my_props.vg_name
-        assign_seam_to_vertex_groups(vg_name)
-
+        seamset_name = my_props.seamset_name
+        # assign_seam_to_vertex_groups(vg_name)
+        seamset = get_seamset(seamset_name)
+        my_props.seamsets[seamset_name] = seamset
         self.report({'INFO'}, "Assign Complete")
         return {'FINISHED'}
 
