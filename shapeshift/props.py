@@ -1,3 +1,4 @@
+import bmesh
 import bpy
 import numpy as np
 import sys
@@ -34,10 +35,15 @@ class SHAPESHIFT_PT_assign_seam(bpy.types.Panel):
 
         col = layout.column(align=True)
         title_pct = 0.4
+        boolean_pct = 0.90
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="UV Seam Set")
-        row.prop(my_props, 'seamset_name', text="")
+        row.label(text="UV Seam Group")
+        row.prop(my_props, 'seam_group_name', text="")
+
+        row = col.split(factor=boolean_pct, align=True)
+        row.label(text="Overwrite")
+        row.prop(my_props, 'seam_group_overwrite', text="")
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_assign_seam.bl_idname, text="Assign")
@@ -80,15 +86,44 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row.prop(my_props, 'uv_margin', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="Lightmap Size")
-        row.prop(my_props, 'lightmap_size', text="")
-
-        row = col.split(factor=title_pct, align=True)
         row.label(text="Pivot")
         row.prop(my_props, 'pivot', text="")
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Texture")
+
+
+class SHAPESHIFT_PT_make_lightmap(bpy.types.Panel):
+    """Make Lightmap Panel"""
+    bl_label = "Make Lightmap"
+    bl_idname = "shapeshift.make_lightmap_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = 'UI'
+    bl_category = "Shapeshift"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        my_props = scene.myprops
+
+        col = layout.column(align=True)
+        title_pct = 0.4
+        boolean_pct = 0.90
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Prefix")
+        row.prop(my_props, 'lightmap_prefix', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Lightmap Size")
+        row.prop(my_props, 'lightmap_size', text="")
+
+        row = col.split(factor=boolean_pct, align=True)
+        row.label(text="Enable All Scene Map")
+        row.prop(my_props, 'map_all_scene_objs', text="")
+
+        row = col.row(align=True)
+        row.operator(SHAPESHIFT_OT_make_lightmap.bl_idname, text="Make")
 
 
 class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
@@ -125,8 +160,8 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row.prop(my_props, 'strip_instnum', text="")
 
         row = col.split(factor=boolean_pct, align=True)
-        row.label(text="Enable Scene Export")
-        row.prop(my_props, 'export_scene', text="")
+        row.label(text="Enable All Scene Export")
+        row.prop(my_props, 'export_all_scene_objs', text="")
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
@@ -191,6 +226,23 @@ def get_selected_collections(**kwargs):
     return mesh_collections
 
 
+def get_mesh_from_selected(use_all_scene_objs):
+    sel_objs = bpy.context.selected_objects
+    mesh_objs = []
+    if len(sel_objs) > 0:
+        mesh_objs = [obj for obj in sel_objs if obj.type == 'MESH']
+    elif (
+        bpy.context.collection.name == "Scene Collection"
+        and use_all_scene_objs is False
+    ):
+        self.report({'INFO'}, "Export Scene Collection Disabled")
+    else:
+        mesh_objs = [
+            obj for obj in bpy.context.collection.all_objects if obj.type == 'MESH'
+        ]
+    return mesh_objs
+
+
 def clone_collection(collection, **kwargs):
     """Clone collection with internal meshes intact.
 
@@ -251,7 +303,6 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
     pivot = kwargs.setdefault("pivot", "bbox")
     thickness = kwargs.setdefault("thickness", 0.04)
     uv_margin = kwargs.setdefault("uv_margin", 0.02)
-    lightmap_size = kwargs.setdefault("lightmap_size", 128)
     cloned_collection = clone_collection(collection)
     mesh = flatten_collection_to_mesh(cloned_collection, thickness=thickness)
     set_pivot(mesh, pivot)
@@ -263,7 +314,6 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
     mesh.select_set(True)
     remove_uv_maps(mesh)
     make_uv_map(mesh, uv_margin=uv_margin)  # Texture UVs
-    make_uv_map(mesh, lightmap_size=lightmap_size)  # Lightmap UVs
     mesh = clean_mesh(mesh)  # unwrap adds vertices
     image = create_test_grid()
     show_image_in_UV_editor(image)
@@ -482,14 +532,12 @@ def make_uv_map(mesh_obj, **kwargs):
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
     if "lightmap_size" in kwargs.keys():
-        prefix = "LM"
+        prefix = kwargs.setdefault("lightmap_prefix", "LM_")
         margin = round(1.0 / kwargs["lightmap_size"] * 2, 3)
-        bpy.ops.mesh.mark_seam(clear=True)
-        bpy.ops.mesh.mark_seam()
     elif "uv_margin" in kwargs.keys():
-        prefix = "UV"
+        prefix = "UV_"
         margin = kwargs["uv_margin"]
-    layer_name = f"{prefix}_{mesh_obj.name}"
+    layer_name = f"{prefix}{mesh_obj.name}"
     layer = mesh_obj.data.uv_layers.get(layer_name)
     if not layer:
         layer = mesh_obj.data.uv_layers.new(name=layer_name)
@@ -720,28 +768,30 @@ def snap_to_origin(mesh_obj):
     return None
 
 
-def get_seamset(seamset_name):
+def get_seam_group(seam_group_name):
     mode = bpy.context.active_object.mode
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_similar(type='SEAM')
+    bpy.ops.object.mode_set(mode='OBJECT')
     seamed_meshes = bpy.context.selected_objects
-    seamset = set()
+    seam_group = set()
     for mesh_obj in seamed_meshes:
         bm = bmesh.new()
-        bm.from_edit_mesh(mesh_obj.data)
+        bm.from_mesh(mesh_obj.data)
         bm.edges.ensure_lookup_table()
         layer = (
-            bm.edges.layers.int.get(seamset_name)
-            or bm.edges.layers.int.new(seamset_name)
+            bm.edges.layers.int.get(seam_group_name)
+            or bm.edges.layers.int.new(seam_group_name)
         )
         seams = {edge.index for edge in bm.edges if edge.seam}
-        seamset.update(seams)
+        seam_group.update(seams)
         layer = seams  # noqa
-        bmesh.update_edit_mesh(mesh_obj.data)
+        bm.to_mesh(mesh_obj.data)
         bm.free()
     bpy.ops.object.mode_set(mode=mode)
-    return seamset
+    seam_group = list(seam_group)
+    return seam_group
 
 
 def assign_seam_to_vertex_groups(target_vg_name):
@@ -826,13 +876,13 @@ def update_progress(task_name, progress):
 
 
 class MyProperties(bpy.types.PropertyGroup):
-    seamset_name: bpy.props.StringProperty(
-        name="UV Seam Set",
+    seam_group_name: bpy.props.StringProperty(
+        name="UV Seam Group",
         default="SEAM_UV"
     )
-    seamsets: bpy.props.CollectionProperty(
-        name="UV Seam Sets",
-        type=set,
+    seam_group_overwrite: bpy.props.BoolProperty(
+        name="Overwrite",
+        default=True
     )
     prefix: bpy.props.StringProperty(
         name="Prefix",
@@ -850,7 +900,7 @@ class MyProperties(bpy.types.PropertyGroup):
         default="timestamp"
     )
     thickness: bpy.props.FloatProperty(
-        name="thickness",
+        name="Thickness",
         default=0.004,
         min=0,
         max=1,
@@ -858,18 +908,26 @@ class MyProperties(bpy.types.PropertyGroup):
         step=1
     )
     uv_margin: bpy.props.FloatProperty(
-        name="uv_margin",
+        name="UV margin",
         default=0.02,
         min=0,
         max=1,
         precision=2,
         step=1
     )
+    lightmap_prefix: bpy.props.StringProperty(
+        name="Lightmap Prefix",
+        default="LM_"
+    )
     lightmap_size: bpy.props.IntProperty(
-        name="lightmap_size",
+        name="Lightmap Size",
         default=128,
         min=64,
         max=1024,
+    )
+    map_all_scene_obj: bpy.props.BoolProperty(
+        name="Enable All Scene Lightmap",
+        default=False
     )
     filepath: bpy.props.StringProperty(
         name="Export Folder",
@@ -880,8 +938,8 @@ class MyProperties(bpy.types.PropertyGroup):
         name="Strip Inst Num",
         default=True
     )
-    export_scene: bpy.props.BoolProperty(
-        name="Enable Scene Export",
+    export_all_scene_objs: bpy.props.BoolProperty(
+        name="Enable All Scene Export",
         default=False
     )
     normals: bpy.props.EnumProperty(
@@ -903,6 +961,26 @@ class MyProperties(bpy.types.PropertyGroup):
     )
 
 
+class SHAPESHIFT_OT_make_lightmap(bpy.types.Operator):
+    """Make Lightmap"""
+    bl_label = "Make Lightmap"
+    bl_idname = "shapeshift.make_lightmap"
+
+    def execute(self, context):
+        scene = context.scene
+        my_props = scene.myprops
+        lightmap_prefix = my_props.lightmap_prefix
+        lightmap_size = my_props.lightmap_size
+        for mesh in get_mesh_from_selected(my_props.map_all_scene_objs):
+            make_uv_map(
+                mesh,
+                lightmap_prefix=lightmap_prefix,
+                lightmap_size=lightmap_size,
+            )
+        self.report({'INFO'}, "Assign Complete")
+        return {'FINISHED'}
+
+
 class SHAPESHIFT_OT_assign_seam(bpy.types.Operator):
     """Assign Seam"""
     bl_label = "Assign Seam"
@@ -911,10 +989,17 @@ class SHAPESHIFT_OT_assign_seam(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         my_props = scene.myprops
-        seamset_name = my_props.seamset_name
-        # assign_seam_to_vertex_groups(vg_name)
-        seamset = get_seamset(seamset_name)
-        my_props.seamsets[seamset_name] = seamset
+        seam_group_name = my_props.seam_group_name
+        my_props["seam_groups"] = my_props.get("seam_groups", {})
+        if (
+            seam_group_name not in my_props.get("seam_groups", {})
+            or (
+                seam_group_name in my_props.get("seam_groups", {})
+                and my_props.seam_group_overwrite
+            )
+        ):
+            my_props["seam_groups"][seam_group_name] = get_seam_group(seam_group_name)
+
         self.report({'INFO'}, "Assign Complete")
         return {'FINISHED'}
 
@@ -961,20 +1046,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         my_props = scene.myprops
-        sel_objs = bpy.context.selected_objects
-        mesh_objs = []
-        if len(sel_objs) > 0:
-            mesh_objs = [obj for obj in sel_objs if obj.type == 'MESH']
-        elif (
-            bpy.context.collection.name == "Scene Collection"
-            and my_props.export_scene is False
-        ):
-            self.report({'INFO'}, "Export Scene Collection Disabled")
-        else:
-            mesh_objs = [
-                obj for obj in bpy.context.collection.all_objects if obj.type == 'MESH'
-            ]
-
+        mesh_objs = get_mesh_from_selected(myprops.export_all_scene_objs)
         if len(mesh_objs) > 0:
             collection_export = create_collection(f"EXPORT-{get_timestamp()}")
             for i, obj in enumerate(mesh_objs):
@@ -1013,6 +1085,8 @@ CLASSES = (
     SHAPESHIFT_PT_export_mesh,
     SHAPESHIFT_OT_assign_seam,
     SHAPESHIFT_PT_assign_seam,
+    SHAPESHIFT_OT_make_lightmap,
+    SHAPESHIFT_PT_make_lightmap,
 )
 
 
