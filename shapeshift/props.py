@@ -1,11 +1,19 @@
-import bmesh
+# import bmesh
 import bpy
+# import logging
 import numpy as np
 import sys
 from datetime import datetime
 from datetime import timezone
 from mathutils import Matrix
 from mathutils import Vector
+
+
+# logging.basicConfig(
+#     level=logging.DEBUG,
+#     format='%(asctime)s - %(levelname)s [%(module)s]: %(message)s',
+#     datefmt='%Y-%m-%d %H:%M:%S',
+# )
 
 
 bl_info = {
@@ -18,35 +26,6 @@ bl_info = {
     "support": 'TESTING',
     "category": 'Mesh'
 }
-
-
-class SHAPESHIFT_PT_assign_seam(bpy.types.Panel):
-    """Assign Seam Panel"""
-    bl_label = "Assign Seam"
-    bl_idname = "shapeshift.assign_seam_panel"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = 'UI'
-    bl_category = "Shapeshift"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        my_props = scene.myprops
-
-        col = layout.column(align=True)
-        title_pct = 0.4
-        boolean_pct = 0.90
-
-        row = col.split(factor=title_pct, align=True)
-        row.label(text="UV Seam Group")
-        row.prop(my_props, 'seam_group_name', text="")
-
-        row = col.split(factor=boolean_pct, align=True)
-        row.label(text="Overwrite")
-        row.prop(my_props, 'seam_group_overwrite', text="")
-
-        row = col.row(align=True)
-        row.operator(SHAPESHIFT_OT_assign_seam.bl_idname, text="Assign")
 
 
 class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
@@ -78,12 +57,20 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
         row.prop(my_props, 'existing', text="")
 
         row = col.split(factor=title_pct, align=True)
-        row.label(text="Thickness")
-        row.prop(my_props, 'thickness', text="")
-
-        row = col.split(factor=title_pct, align=True)
         row.label(text="UV Margin")
         row.prop(my_props, 'uv_margin', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Lightmap")
+        subcol = row.split(factor=0.3, align=True)
+        subcol.prop(my_props, 'add_lightmap', text="")
+        subcol.prop(my_props, 'lightmap_size', text="")
+
+        row = col.split(factor=title_pct, align=True)
+        row.label(text="Solidify")
+        subcol = row.split(factor=0.3, align=True)
+        subcol.prop(my_props, 'add_solidify', text="")
+        subcol.prop(my_props, 'thickness', text="")
 
         row = col.split(factor=title_pct, align=True)
         row.label(text="Pivot")
@@ -91,39 +78,6 @@ class SHAPESHIFT_PT_texture_mesh(bpy.types.Panel):
 
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_texture_mesh.bl_idname, text="Texture")
-
-
-class SHAPESHIFT_PT_make_lightmap(bpy.types.Panel):
-    """Make Lightmap Panel"""
-    bl_label = "Make Lightmap"
-    bl_idname = "shapeshift.make_lightmap_panel"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = 'UI'
-    bl_category = "Shapeshift"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        my_props = scene.myprops
-
-        col = layout.column(align=True)
-        title_pct = 0.4
-        boolean_pct = 0.90
-
-        row = col.split(factor=title_pct, align=True)
-        row.label(text="Prefix")
-        row.prop(my_props, 'lightmap_prefix', text="")
-
-        row = col.split(factor=title_pct, align=True)
-        row.label(text="Lightmap Size")
-        row.prop(my_props, 'lightmap_size', text="")
-
-        row = col.split(factor=boolean_pct, align=True)
-        row.label(text="Enable All Scene Map")
-        row.prop(my_props, 'map_all_scene_objs', text="")
-
-        row = col.row(align=True)
-        row.operator(SHAPESHIFT_OT_make_lightmap.bl_idname, text="Make")
 
 
 class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
@@ -154,6 +108,10 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row = col.split(factor=title_pct, align=True)
         row.label(text="Pivot")
         row.prop(my_props, 'pivot', text="")
+
+        row = col.split(factor=boolean_pct, align=True)
+        row.label(text="Apply Modifiers")
+        row.prop(my_props, 'apply_mods', text="")
 
         row = col.split(factor=boolean_pct, align=True)
         row.label(text="Strip Instance Number")
@@ -235,7 +193,8 @@ def get_mesh_from_selected(use_all_scene_objs):
         bpy.context.collection.name == "Scene Collection"
         and use_all_scene_objs is False
     ):
-        self.report({'INFO'}, "Export Scene Collection Disabled")
+        pass
+        # logging.info("Export Scene Collection Disabled")
     else:
         mesh_objs = [
             obj for obj in bpy.context.collection.all_objects if obj.type == 'MESH'
@@ -272,13 +231,15 @@ def flatten_collection_to_mesh(collection, **kwargs):
     Returns:
         cleaned_mesh (bpy.types.Object): Joined and cleaned mesh.
     """
+    add_solidify = kwargs.setdefault("add_solidify", False)
     thickness = kwargs.setdefault("thickness", 0.04)
     mesh_objs = [obj for obj in collection.all_objects if obj.type == 'MESH']
     modded_objs = apply_mods(mesh_objs)
     baked_objs = bake_scale(modded_objs)
     joined_mesh = join_mesh(baked_objs, collection.name)
-    solid_mesh = solidify_mesh(joined_mesh, thickness=thickness)
-    cleaned_mesh = clean_mesh(solid_mesh)
+    if add_solidify:
+        joined_mesh = solidify_mesh(joined_mesh, thickness=thickness)
+    cleaned_mesh = clean_mesh(joined_mesh)
     return cleaned_mesh
 
 
@@ -286,8 +247,8 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
     """Make a collection of meshes into a single mesh ready for export into UE4.
 
     Collections are joined, cleaned, unwrapped, and textured with a
-    Blender test grid. This will allow easy visual inspection of the mesh
-    before exporting.
+    Blender test grid. The resulting mesh is then moved to a destination collection.
+    This will allow easy visual inspection of the mesh before exporting.
 
     Args:
         collection (bpy.types.Collection): Collection to texture.
@@ -301,10 +262,17 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
         mesh (bpy.types.Object): Textured mesh.
     """
     pivot = kwargs.setdefault("pivot", "bbox")
+    add_solidify = kwargs.setdefault("add_solidify", False)
     thickness = kwargs.setdefault("thickness", 0.04)
     uv_margin = kwargs.setdefault("uv_margin", 0.02)
+    add_lightmap = kwargs.setdefault("add_lightmap", False)
+    lightmap_size = kwargs.setdefault("lightmap_size", False)
     cloned_collection = clone_collection(collection)
-    mesh = flatten_collection_to_mesh(cloned_collection, thickness=thickness)
+    mesh = flatten_collection_to_mesh(
+        cloned_collection,
+        add_solidify=add_solidify,
+        thickness=thickness,
+    )
     set_pivot(mesh, pivot)
     move_mesh_to_collection(mesh, dest_collection_name)
     remove_collection(cloned_collection)
@@ -313,10 +281,12 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
     bpy.ops.object.select_all(action='DESELECT')
     mesh.select_set(True)
     remove_uv_maps(mesh)
-    make_uv_map(mesh, uv_margin=uv_margin)  # Texture UVs
+    make_uv_map(mesh, uv_margin=uv_margin)
+    if add_lightmap:
+        make_uv_map(mesh, lightmap_size=lightmap_size)
     mesh = clean_mesh(mesh)  # unwrap adds vertices
     image = create_test_grid()
-    show_image_in_UV_editor(image)
+    show_image_in_uv_editor(image)
     material = assign_material(mesh)
     add_texture_to_material(image, material)
     return mesh
@@ -531,12 +501,14 @@ def make_uv_map(mesh_obj, **kwargs):
     if bpy.context.mode == 'OBJECT':
         bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    if "lightmap_size" in kwargs.keys():
-        prefix = kwargs.setdefault("lightmap_prefix", "LM_")
-        margin = round(1.0 / kwargs["lightmap_size"] * 2, 3)
-    elif "uv_margin" in kwargs.keys():
+    if "uv_margin" in kwargs.keys():
         prefix = "UV_"
         margin = kwargs["uv_margin"]
+    elif "lightmap_size" in kwargs.keys():
+        prefix = "LM_"
+        margin = round(1.0 / kwargs["lightmap_size"] * 2, 3)
+        bpy.ops.mesh.mark_seam(clear=True)
+        bpy.ops.mesh.mark_seam()
     layer_name = f"{prefix}{mesh_obj.name}"
     layer = mesh_obj.data.uv_layers.get(layer_name)
     if not layer:
@@ -548,6 +520,7 @@ def make_uv_map(mesh_obj, **kwargs):
         correct_aspect = True,
         fill_holes = False,
     )
+    bpy.ops.mesh.mark_seam(clear=True)
     return None
 
 
@@ -581,7 +554,7 @@ def create_test_grid(**kwargs):
     return image
 
 
-def show_image_in_UV_editor(image):
+def show_image_in_uv_editor(image):
     """Show texture image in UV Editor.
 
     Args:
@@ -768,32 +741,6 @@ def snap_to_origin(mesh_obj):
     return None
 
 
-def get_seam_group(seam_group_name):
-    mode = bpy.context.active_object.mode
-    if bpy.context.mode == 'OBJECT':
-        bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.select_similar(type='SEAM')
-    bpy.ops.object.mode_set(mode='OBJECT')
-    seamed_meshes = bpy.context.selected_objects
-    seam_group = set()
-    for mesh_obj in seamed_meshes:
-        bm = bmesh.new()
-        bm.from_mesh(mesh_obj.data)
-        bm.edges.ensure_lookup_table()
-        layer = (
-            bm.edges.layers.int.get(seam_group_name)
-            or bm.edges.layers.int.new(seam_group_name)
-        )
-        seams = {edge.index for edge in bm.edges if edge.seam}
-        seam_group.update(seams)
-        layer = seams  # noqa
-        bm.to_mesh(mesh_obj.data)
-        bm.free()
-    bpy.ops.object.mode_set(mode=mode)
-    seam_group = list(seam_group)
-    return seam_group
-
-
 def assign_seam_to_vertex_groups(target_vg_name):
     mode = bpy.context.active_object.mode
     if bpy.context.mode == 'OBJECT':
@@ -819,17 +766,22 @@ def assign_seam_to_vertex_groups(target_vg_name):
     return None
 
 
-def export_fbx(mesh_obj, export_dir, strip_instnum):
+def export_fbx(mesh_obj, export_dir, **kwargs):
     """Export mesh.
 
     Args:
         mesh_obj (bpy.types.Object): Mesh to export.
         export_dir (str): Export directory (absolute).
-        strip_instnum (bool): Strip Blender mesh instance suffix.
+
+    Kwargs:
+        strip_instnum (bool): Strip Blender automatic mesh instance suffix.
+        apply_mods (bool): Apply modifier(s) on export.
 
     Returns:
         None
     """
+    strip_instnum = kwargs.setdefault("strip_instnum", True)
+    apply_mods = kwargs.setdefault("apply_mods", True)
     basename = mesh_obj.name
     basename = basename.removesuffix("_EXPORT")
     if strip_instnum:
@@ -851,7 +803,7 @@ def export_fbx(mesh_obj, export_dir, strip_instnum):
         apply_scale_options='FBX_SCALE_NONE',
         use_space_transform=True,
         object_types={'MESH'},
-        use_mesh_modifiers=True,
+        use_mesh_modifiers=apply_mods,
         mesh_smooth_type='FACE',
         path_mode='AUTO',
         batch_mode='OFF',
@@ -899,6 +851,10 @@ class MyProperties(bpy.types.PropertyGroup):
         ],
         default="timestamp"
     )
+    add_solidify: bpy.props.BoolProperty(
+        name="Solidify",
+        default=False
+    )
     thickness: bpy.props.FloatProperty(
         name="Thickness",
         default=0.004,
@@ -915,9 +871,9 @@ class MyProperties(bpy.types.PropertyGroup):
         precision=2,
         step=1
     )
-    lightmap_prefix: bpy.props.StringProperty(
-        name="Lightmap Prefix",
-        default="LM_"
+    add_lightmap: bpy.props.BoolProperty(
+        name="Lightmap",
+        default=False
     )
     lightmap_size: bpy.props.IntProperty(
         name="Lightmap Size",
@@ -925,7 +881,7 @@ class MyProperties(bpy.types.PropertyGroup):
         min=64,
         max=1024,
     )
-    map_all_scene_obj: bpy.props.BoolProperty(
+    map_all_scene_objs: bpy.props.BoolProperty(
         name="Enable All Scene Lightmap",
         default=False
     )
@@ -933,6 +889,10 @@ class MyProperties(bpy.types.PropertyGroup):
         name="Export Folder",
         subtype='DIR_PATH',
         default="/tmp"
+    )
+    apply_mods: bpy.props.BoolProperty(
+        name="Apply Modifiers",
+        default=True
     )
     strip_instnum: bpy.props.BoolProperty(
         name="Strip Inst Num",
@@ -961,49 +921,6 @@ class MyProperties(bpy.types.PropertyGroup):
     )
 
 
-class SHAPESHIFT_OT_make_lightmap(bpy.types.Operator):
-    """Make Lightmap"""
-    bl_label = "Make Lightmap"
-    bl_idname = "shapeshift.make_lightmap"
-
-    def execute(self, context):
-        scene = context.scene
-        my_props = scene.myprops
-        lightmap_prefix = my_props.lightmap_prefix
-        lightmap_size = my_props.lightmap_size
-        for mesh in get_mesh_from_selected(my_props.map_all_scene_objs):
-            make_uv_map(
-                mesh,
-                lightmap_prefix=lightmap_prefix,
-                lightmap_size=lightmap_size,
-            )
-        self.report({'INFO'}, "Assign Complete")
-        return {'FINISHED'}
-
-
-class SHAPESHIFT_OT_assign_seam(bpy.types.Operator):
-    """Assign Seam"""
-    bl_label = "Assign Seam"
-    bl_idname = "shapeshift.assign_seam"
-
-    def execute(self, context):
-        scene = context.scene
-        my_props = scene.myprops
-        seam_group_name = my_props.seam_group_name
-        my_props["seam_groups"] = my_props.get("seam_groups", {})
-        if (
-            seam_group_name not in my_props.get("seam_groups", {})
-            or (
-                seam_group_name in my_props.get("seam_groups", {})
-                and my_props.seam_group_overwrite
-            )
-        ):
-            my_props["seam_groups"][seam_group_name] = get_seam_group(seam_group_name)
-
-        self.report({'INFO'}, "Assign Complete")
-        return {'FINISHED'}
-
-
 class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
     """Texture Mesh"""
     bl_label = "Texture Mesh"
@@ -1012,15 +929,13 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         my_props = scene.myprops
-        prefix = my_props.prefix
         dest_collection_name = my_props.dest_collection
-        existing = my_props.existing
-        if existing == "timestamp":
+        if my_props.existing == "timestamp":
             dest_collection_name = "-".join(
                 [dest_collection_name, get_timestamp()]
             )
         create_collection(dest_collection_name)
-        source_collections = get_mesh_collections(prefix=prefix)
+        source_collections = get_mesh_collections(prefix=my_props.prefix)
         # source_collections = get_selected_collections(prefix=prefix)
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
@@ -1030,8 +945,10 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
                 collection,
                 dest_collection_name,
                 pivot = my_props.pivot,
+                add_solidify = my_props.add_solidify,
                 thickness = my_props.thickness,
                 uv_margin = my_props.uv_margin,
+                add_lightmap = my_props.add_lightmap,
                 lightmap_size = my_props.lightmap_size,
             )
         self.report({'INFO'}, "Texture Complete")
@@ -1046,7 +963,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         my_props = scene.myprops
-        mesh_objs = get_mesh_from_selected(myprops.export_all_scene_objs)
+        mesh_objs = get_mesh_from_selected(my_props.export_all_scene_objs)
         if len(mesh_objs) > 0:
             collection_export = create_collection(f"EXPORT-{get_timestamp()}")
             for i, obj in enumerate(mesh_objs):
@@ -1068,7 +985,8 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
                 export_fbx(
                     obj_export,
                     my_props.filepath,
-                    my_props.strip_instnum
+                    strip_instnum=my_props.strip_instnum,
+                    apply_mods=my_props.apply_mods,
                 )
             remove_collection(collection_export)
             self.report({'INFO'}, "Export Complete")
@@ -1083,10 +1001,6 @@ CLASSES = (
     SHAPESHIFT_PT_texture_mesh,
     SHAPESHIFT_OT_export_mesh,
     SHAPESHIFT_PT_export_mesh,
-    SHAPESHIFT_OT_assign_seam,
-    SHAPESHIFT_PT_assign_seam,
-    SHAPESHIFT_OT_make_lightmap,
-    SHAPESHIFT_PT_make_lightmap,
 )
 
 
