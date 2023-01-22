@@ -2,12 +2,15 @@
 import bpy
 # import logging
 import numpy as np
+import os
+import stat
 import sys
 from datetime import datetime
 from datetime import timezone
 from mathutils import Matrix
 from mathutils import Vector
 
+from constants import _const as CONSTANTS
 
 # logging.basicConfig(
 #     level=logging.DEBUG,
@@ -121,6 +124,10 @@ class SHAPESHIFT_PT_export_mesh(bpy.types.Panel):
         row.label(text="Enable All Scene Export")
         row.prop(my_props, 'export_all_scene_objs', text="")
 
+        row = col.split(factor=boolean_pct, align=True)
+        row.label(text="Overwrite File(s)")
+        row.prop(my_props, 'overwrite_file', text="")
+
         row = col.row(align=True)
         row.operator(SHAPESHIFT_OT_export_mesh.bl_idname, text="Export")
 
@@ -152,36 +159,53 @@ def create_collection(collection_name):
     return collection
 
 
-def get_mesh_collections(**kwargs):
-    """Get all collections from which to prepare static meshes for unwrap/export.
-
-    Args:
-        None
-
-    Kwargs:
-        prefix (str): Prefix for collections. Default is UE4 "SM_" convention.
-
-    Returns:
-        mesh_collections (list): Collections to export.
-    """
-    prefix = kwargs.setdefault("prefix", "SM_")
-    mesh_collections = [
-        collection for collection in bpy.data.collections
-        if collection.name.startswith(prefix)
-    ]
-    return mesh_collections
+def needs_temp_override():
+    temp_override = False
+    version = bpy.app.version
+    major = version[0]
+    minor = version[1]
+    if major < 3 or (major == 3 and minor < 2):
+        temp_override = False
+    else:
+        temp_override = True
+    return temp_override
 
 
 def get_selected_collections(**kwargs):
-    prefix = kwargs.setdefault("prefix", "SM_")
-    mesh_collections = [
-        collection for selected in bpy.context.selected_ids
-        if (
-            isinstance(selected, bpy.types.Collection)
-            and selected.name.startswith(prefix)
-        )
-    ]
-    return mesh_collections
+    prefix = kwargs.setdefault("prefix", None)
+    selected_collections = None
+    win = bpy.context.window
+    scr = win.screen
+    areas_3d = [area for area in scr.areas if area.type == 'VIEW_3D']
+    regions = [region for region in areas_3d[0].regions if region.type == 'WINDOW']
+
+    if needs_temp_override():
+        area_override = bpy.context.area
+        if bpy.context.area.type != 'OUTLINER':  # Find the outliner
+            for area in bpy.context.screen.areas:
+                if area.type == 'OUTLINER':
+                    area_override = area
+
+        with bpy.context.temp_override(area=area_override):
+            selects = bpy.context.selected_ids
+            selected_collections = [
+                sel for sel in selects if sel.rna_type.name == 'Collection'
+            ]
+    else:
+        override = {
+            'window': win,
+            'screen': scr,
+            'area': areas_3d[0],
+            'region': regions[0]
+        }
+        # TODO: Add context override for old versions
+        type(override)
+
+    if prefix:
+        selected_collections = [
+            sel for sel in selected_collections if sel.name.startswith(prefix)
+        ]
+    return selected_collections
 
 
 def get_mesh_from_selected(use_all_scene_objs):
@@ -285,9 +309,9 @@ def make_texture_mesh(collection, dest_collection_name, **kwargs):
     if add_lightmap:
         make_uv_map(mesh, lightmap_size=lightmap_size)
     mesh = clean_mesh(mesh)  # unwrap adds vertices
-    image = create_test_grid()
+    image = create_test_grid(name=f"I_{strip_instnum(mesh.name)}")
     show_image_in_uv_editor(image)
-    material = assign_material(mesh)
+    material = assign_material(mesh, material=f"M_{strip_instnum(mesh.name)}")
     add_texture_to_material(image, material)
     return mesh
 
@@ -766,6 +790,13 @@ def assign_seam_to_vertex_groups(target_vg_name):
     return None
 
 
+def strip_instance_num(str_):
+    list_ = str_.split(".")
+    if len(list_) > 1 and list_[-1].isnumeric():
+        str_ = ".".join(list_[0:-1])
+    return str_
+
+
 def export_fbx(mesh_obj, export_dir, **kwargs):
     """Export mesh.
 
@@ -776,19 +807,22 @@ def export_fbx(mesh_obj, export_dir, **kwargs):
     Kwargs:
         strip_instnum (bool): Strip Blender automatic mesh instance suffix.
         apply_mods (bool): Apply modifier(s) on export.
+        overwrite_file (bool): Overwrite existing file(s).
 
     Returns:
         None
     """
     strip_instnum = kwargs.setdefault("strip_instnum", True)
     apply_mods = kwargs.setdefault("apply_mods", True)
+    overwrite_file = kwargs.setdefault("overwrite_file", True)
     basename = mesh_obj.name
     basename = basename.removesuffix("_EXPORT")
     if strip_instnum:
-        list_ = basename.split(".")
-        if len(list_) > 1 and list_[-1].isnumeric():
-            basename = ".".join(list_[0:-1])
-    export_path = f"{export_dir}/{basename}.fbx"
+        basename = strip_instance_num(basename)
+    export_path = f"{export_dir}/{CONSTANTS().SM_PREFIX}{basename}.fbx"
+    if os.path.exists(export_path) and overwrite_file:
+        filestat = os.stat(export_path)
+        os.chmod(export_path, filestat.st_mode | stat.S_IWUSR)
     if bpy.context.mode == 'EDIT_MESH':
         bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
@@ -838,7 +872,8 @@ class MyProperties(bpy.types.PropertyGroup):
     )
     prefix: bpy.props.StringProperty(
         name="Prefix",
-        default="SM_"
+        # default="MY_"
+        default=CONSTANTS().CUSTOM_COLLECTIONS_PREFIX
     )
     dest_collection: bpy.props.StringProperty(
         name="Destination",
@@ -890,6 +925,10 @@ class MyProperties(bpy.types.PropertyGroup):
         subtype='DIR_PATH',
         default="/tmp"
     )
+    overwrite_file: bpy.props.BoolProperty(
+        name="Overwrite File",
+        default=True
+    )
     apply_mods: bpy.props.BoolProperty(
         name="Apply Modifiers",
         default=True
@@ -935,8 +974,7 @@ class SHAPESHIFT_OT_texture_mesh(bpy.types.Operator):
                 [dest_collection_name, get_timestamp()]
             )
         create_collection(dest_collection_name)
-        source_collections = get_mesh_collections(prefix=my_props.prefix)
-        # source_collections = get_selected_collections(prefix=prefix)
+        source_collections = get_selected_collections(prefix=my_props.prefix)
         bpy.context.window.workspace = bpy.data.workspaces['UV Editing']
         bpy.context.space_data.shading.type = 'MATERIAL'
         for i, collection in enumerate(source_collections):
@@ -987,6 +1025,7 @@ class SHAPESHIFT_OT_export_mesh(bpy.types.Operator):
                     my_props.filepath,
                     strip_instnum=my_props.strip_instnum,
                     apply_mods=my_props.apply_mods,
+                    overwrite_file=my_props.overwrite_file,
                 )
             remove_collection(collection_export)
             self.report({'INFO'}, "Export Complete")
@@ -1012,7 +1051,7 @@ def register():
 
 def unregister():
     for cls in CLASSES:
-        bpy.utils.register_class(cls)
+        bpy.utils.unregister_class(cls)
     del bpy.types.Scene.myprops
 
 
