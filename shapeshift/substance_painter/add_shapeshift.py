@@ -5,6 +5,8 @@ import os
 import pkg_resources
 import sys
 
+logging.basicConfig(level=logging.INFO)
+
 
 def main():
     painter_plugin_path = "SUBSTANCE_PAINTER_PLUGINS_PATH"
@@ -13,15 +15,11 @@ def main():
         f"{shapeshift_pkg.location}/"
         "shapeshift/substance_painter"
     )
-    if painter_plugin_path in os.environ.keys():
-        if shapeshift_plugin_path in os.environ[painter_plugin_path]:
-            logging.info("Found shapeshift plugin path in environment.")
-        else:
-            logging.info("Adding shapeshift plugin path to environment.")
-            os.environ[painter_plugin_path].append(shapeshift_plugin_path)
-    else:
-        logging.info("Adding shapeshift plugin path to environment.")
-        os.environ[painter_plugin_path] = shapeshift_plugin_path
+    if os.path.exists(shapeshift_plugin_path):
+        print(
+            "Add to your environment and restart Substance 3D Painter."
+            f"{painter_plugin_path}={shapeshift_plugin_path}"
+        )
     return None
 
 
