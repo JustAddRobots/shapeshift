@@ -29,6 +29,8 @@ setup(
     python_requires=">=3.6",
     packages=[
         "shapeshift",
+        "shapeshift.blender",
+        "shapeshift.substance_painter"
     ],
     entry_points={
         "console_scripts": [
