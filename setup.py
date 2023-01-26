@@ -31,6 +31,9 @@ setup(
         "shapeshift",
         "shapeshift.blender",
         "shapeshift.substance_painter"
+        "shapeshift.substance_painter.modules"
+        "shapeshift.substance_painter.plugins"
+        "shapeshift.substance_painter.startup"
     ],
     entry_points={
         "console_scripts": [
