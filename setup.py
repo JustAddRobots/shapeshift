@@ -30,15 +30,15 @@ setup(
     packages=[
         "shapeshift",
         "shapeshift.blender",
-        "shapeshift.substance_painter",
-        "shapeshift.substance_painter.modules",
-        "shapeshift.substance_painter.plugins",
-        "shapeshift.substance_painter.startup",
+        "shapeshift.substance",
+        "shapeshift.substance.modules",
+        "shapeshift.substance.plugins",
+        "shapeshift.substance.startup",
 
     ],
     entry_points={
         "console_scripts": [
-            "add_shapeshift=shapeshift.substance_painter.add_shapeshift:main"
+            "add_shapeshift=shapeshift.substance.add_shapeshift:main"
         ]
     },
     zip_safe = False

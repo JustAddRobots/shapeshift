@@ -13,7 +13,7 @@ def main():
     shapeshift_pkg = pkg_resources.get_distribution("shapeshift")
     shapeshift_plugin_path = (
         f"{shapeshift_pkg.location}/"
-        "shapeshift/substance_painter"
+        "shapeshift/substance"
     )
     if os.path.exists(shapeshift_plugin_path):
         print(
