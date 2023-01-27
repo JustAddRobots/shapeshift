@@ -9,16 +9,19 @@ logging.basicConfig(level=logging.INFO)
 
 
 def main():
-    painter_plugin_path = "SUBSTANCE_PAINTER_PLUGINS_PATH"
+    envar_painter_plugin_path = "SUBSTANCE_PAINTER_PLUGINS_PATH"
+    envar_pythonpath = "PYTHONPATH"
     shapeshift_pkg = pkg_resources.get_distribution("shapeshift")
+    shapeshift_location = f"{shapeshift_pkg.location}"
     shapeshift_plugin_path = (
-        f"{shapeshift_pkg.location}/"
+        f"{shapeshift_location}/"
         "shapeshift/substance"
     )
     if os.path.exists(shapeshift_plugin_path):
         print(
             "Add to your environment and restart Substance 3D Painter."
-            f"{painter_plugin_path}={shapeshift_plugin_path}"
+            f"{envar_pythonpath}={shapeshift_location}"
+            f"{envar_painter_plugin_path}={shapeshift_plugin_path}"
         )
     return None
 
