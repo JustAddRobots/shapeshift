@@ -79,7 +79,7 @@ def start_plugin():
 
 def close_plugin():
     for widget in plugin_widgets:
-        painter_ui.delte_ui_element(widget)
+        painter_ui.delete_ui_element(widget)
 
     plugin_widgets.clear()
     return None
