@@ -8,6 +8,7 @@ import substance_painter.logging as painter_log
 import substance_painter.ui as painter_ui
 import substance_painter.project as painter_proj
 
+from PySide2 import QtGui
 from PySide2 import QtWidgets
 from shapeshift.constants import _const as CONSTANTS
 
@@ -64,11 +65,11 @@ def get_mesh_file_path():
 
 
 def start_plugin():
-    BuildUEAction = QtWidgets.QWidgetAction(
+    BuildUEAction = QtGui.QAction(
         "Build UE Project",
         triggered=get_mesh_file_path
     )
-    shapeshiftMenu = QtWidgets.QMenu()
+    shapeshiftMenu = QtWidgets.QMenu("BuildUE", parent=None)
     shapeshiftMenu.addAction(BuildUEAction)
     painter_ui.add_menu(
         shapeshiftMenu
