@@ -68,8 +68,12 @@ def start_plugin():
         "Build UE Project",
         triggered=get_mesh_file_path
     )
-    shapeshiftMenu = QtWidgets.QMenu("BuildUE", parent=None)
-    shapeshiftMenu.addAction(BuildUEAction)
+    shapeshiftMenu = QtWidgets.QMenu("Shapeshift", parent=None)
+    # shapeshiftMenu.addAction(BuildUEAction)
+    painter_ui.add_action(
+        menu=shapeshiftMenu,
+        action=BuildUEAction,
+    )
     painter_ui.add_menu(
         shapeshiftMenu
     )
