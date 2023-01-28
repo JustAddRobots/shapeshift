@@ -18,10 +18,7 @@ class ShapeshiftMenu(QtWidgets.QMenu):
 
     def __init__(self):
         super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
-        _create_ue = QtWidgets.QWidgetAction(
-            "Create UE Project",
-            self
-        )
+        _create_ue = QtWidgets.QWidgetAction(self)
         _create_ue.triggered.connect(self._create_project)
         self.addAction(_create_ue)
 
