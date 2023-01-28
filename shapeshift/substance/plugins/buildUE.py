@@ -19,6 +19,7 @@ class ShapeshiftMenu(QtWidgets.QMenu):
     def __init__(self):
         super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
         _create_ue = QtWidgets.QWidgetAction(self)
+        _create_ue.setText("Create UE Project")
         _create_ue.triggered.connect(self._create_project)
         self.addAction(_create_ue)
 
@@ -47,7 +48,7 @@ class ShapeshiftMenu(QtWidgets.QMenu):
         mesh_file_path = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Open Static Mesh",
-            Path.home(),
+            str(Path.home()),
             "Static Mesh Files (*.fbx)"
         )
         if not mesh_file_path:
