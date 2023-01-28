@@ -14,70 +14,74 @@ from shapeshift.constants import _const as CONSTANTS
 plugin_widgets = []
 
 
-def get_project_settings(mesh_file_path, texture_res):
-    texture_dir_path = os.path.dirname(mesh_file_path).replace(
-        "Meshes",
-        "Textures"
-    )
-    project_settings = painter_proj.Settings(
-        default_texture_resolution=texture_res,
-        export_path=texture_dir_path,
-        import_cameras=False,
-        normal_map_format=painter_proj.NormalMapFormat.DirectX,
-        tangent_space_mode=painter_proj.TangentSpace.PerFragment
-    )
-    return project_settings
+class ShapeshiftMenu(QtWidgets.QMenu):
 
-
-def create_project(mesh_file_path, texture_res):
-    try:
-        painter_proj.create(
-            mesh_file_path=mesh_file_path,
-            # template_file_path=
-            settings=get_project_settings(
-                mesh_file_path,
-                texture_res
-            )
+    def __init__(self):
+        super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
+        _create_ue = QtWidgets.QWidgetAction(
+            "Create UE Project",
+            self
         )
-    except (painter_exc.ProjectError, ValueError) as e:
-        painter_log.log(
-            painter_log.ERROR,
-            "shapeshift",
-            f"Project Creation Error: {e}"
-        )
-    return None
+        _create_ue.triggered.connect(self._create_project)
+        self.addAction(_create_ue)
 
-
-def get_mesh_file_path():
-    mesh_file_path = QtWidgets.QFileDialog.getOpenFileName(
-        self,
-        "Open Static Mesh",
-        Path.home(),
-        "Static Mesh Files (*.fbx)"
-    )
-    with mesh_file_path:
-        create_project(
+    def _create_project(self):
+        texture_res = CONSTANTS().TEXTURE_RES
+        mesh_file_path = self._get_mesh_file_path()
+        project_settings = self._get_project_settings(
             mesh_file_path,
-            CONSTANTS().TEXTURE_RES
+            texture_res
         )
-    return None
+        try:
+            painter_proj.create(
+                mesh_file_path,
+                # template_file_path=
+                settings=project_settings
+            )
+        except (painter_exc.ProjectError, ValueError) as e:
+            painter_log.log(
+                painter_log.ERROR,
+                "shapeshift",
+                f"Project Creation Error: {e}"
+            )
+        return None
+
+    def _get_mesh_file_path(self):
+        mesh_file_path = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Open Static Mesh",
+            Path.home(),
+            "Static Mesh Files (*.fbx)"
+        )
+        if not mesh_file_path:
+            painter_log.log(
+                painter_log.ERROR,
+                "shapeshift",
+                f"Invalid file path: {mesh_file_path}"
+            )
+        return mesh_file_path
+
+    def _get_project_settings(self, mesh_file_path, texture_res):
+        texture_dir_path = os.path.dirname(mesh_file_path).replace(
+            "Meshes",
+            "Textures"
+        )
+        project_settings = painter_proj.Settings(
+            default_texture_resolution=texture_res,
+            export_path=texture_dir_path,
+            import_cameras=False,
+            normal_map_format=painter_proj.NormalMapFormat.DirectX,
+            tangent_space_mode=painter_proj.TangentSpace.PerFragment
+        )
+        return project_settings
 
 
 def start_plugin():
-    BuildUEAction = QtWidgets.QAction(
-        "Build UE Project",
-        triggered=get_mesh_file_path
-    )
-    shapeshiftMenu = QtWidgets.QMenu("Shapeshift", parent=None)
-    # shapeshiftMenu.addAction(BuildUEAction)
-    painter_ui.add_action(
-        menu=shapeshiftMenu,
-        action=BuildUEAction,
-    )
+    shapeshift_menu = ShapeshiftMenu()
     painter_ui.add_menu(
-        shapeshiftMenu
+        shapeshift_menu
     )
-    plugin_widgets.append(shapeshiftMenu)
+    plugin_widgets.append(shapeshift_menu)
     return None
 
 
