@@ -45,7 +45,7 @@ class ShapeshiftMenu(QtWidgets.QMenu):
         return None
 
     def _get_mesh_file_path(self):
-        mesh_file_path = QtWidgets.QFileDialog.getOpenFileName(
+        mesh_file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Open Static Mesh",
             str(Path.home()),
