@@ -65,6 +65,7 @@ class ShapeshiftMenu(QtWidgets.QMenu):
             "Textures"
         )
         project_settings = painter_proj.Settings(
+            # default_save_path
             default_texture_resolution=texture_res,
             export_path=texture_dir_path,
             import_cameras=False,
