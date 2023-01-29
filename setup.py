@@ -31,14 +31,14 @@ setup(
         "shapeshift",
         "shapeshift.blender",
         "shapeshift.substance",
-        "shapeshift.substance.modules",
-        "shapeshift.substance.plugins",
-        "shapeshift.substance.startup",
+        "shapeshift.substance3d.modules",
+        "shapeshift.substance3d.plugins",
+        "shapeshift.substance3d.startup",
 
     ],
     entry_points={
         "console_scripts": [
-            "add_shapeshift=shapeshift.substance.add_shapeshift:main"
+            "add_shapeshift=shapeshift.substance3d.add_shapeshift:main"
         ]
     },
     zip_safe = False

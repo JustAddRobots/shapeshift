@@ -15,7 +15,7 @@ def main():
     shapeshift_location = f"{shapeshift_pkg.location}"
     shapeshift_plugin_path = (
         f"{shapeshift_location}/"
-        "shapeshift/substance"
+        "shapeshift/substance3d"
     )
     if os.path.exists(shapeshift_plugin_path):
         print(
