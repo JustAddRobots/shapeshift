@@ -10,7 +10,7 @@ import substance_painter.ui as painter_ui
 import substance_painter.project as painter_proj
 
 from shapeshift.substance3d.modules import baketools
-from shapeshift.substance3d.modules.constants import _const as CONSTANTS
+from shapeshift.common.constants import _const as CONSTANTS
 
 plugin_widgets = []
 
