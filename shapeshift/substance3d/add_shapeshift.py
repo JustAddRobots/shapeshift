@@ -19,9 +19,9 @@ def main():
     )
     if os.path.exists(shapeshift_plugin_path):
         print(
-            "Add to your environment and restart Substance 3D Painter."
-            f"{envar_pythonpath}={shapeshift_location}"
-            f"{envar_painter_plugin_path}={shapeshift_plugin_path}"
+            "Add to your environment and restart Substance 3D Painter.\n"
+            f"{envar_pythonpath}={shapeshift_location}\n"
+            f"{envar_painter_plugin_path}={shapeshift_plugin_path}\n"
         )
     return None
 

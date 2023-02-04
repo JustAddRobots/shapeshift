@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Package constants.
+This module defines package constants.
 """
 
 
@@ -27,3 +27,9 @@ class _const(object):
     @constant
     def TEXTURE_RES():
         return 2048
+
+    @constant
+    def IGNORE_RETURNCODE():
+        return {
+            "grep": 1,
+        }
