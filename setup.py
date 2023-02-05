@@ -30,6 +30,7 @@ setup(
     packages=[
         "shapeshift",
         "shapeshift.blender",
+        "shapeshift.common",
         "shapeshift.substance3d",
         "shapeshift.substance3d.modules",
         "shapeshift.substance3d.plugins",

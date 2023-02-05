@@ -9,7 +9,7 @@ import substance_painter.logging as painter_log
 import substance_painter.ui as painter_ui
 import substance_painter.project as painter_proj
 
-from shapeshift.substance3d.modules import baketools
+# from shapeshift.substance3d.modules import baketools
 from shapeshift.common.constants import _const as CONSTANTS
 
 plugin_widgets = []
@@ -26,11 +26,11 @@ class ShapeshiftMenu(QtWidgets.QMenu):
         create_ue.triggered.connect(self._create_project)
         self.addAction(_create_ue)
 
-        mesh_map = baketools.MeshMap(self._mesh_file_path)
-        bake_maps = QtWidgets.QWidgetAction(self)
-        bake_maps.setText("Bake Mesh Maps")
-        bake_maps.triggered.connect(mesh_map.bake_mesh_maps)
-        self.addAction(bake_maps)
+#         mesh_map = baketools.MeshMap(self._mesh_file_path)
+#         bake_maps = QtWidgets.QWidgetAction(self)
+#         bake_maps.setText("Bake Mesh Maps")
+#         bake_maps.triggered.connect(mesh_map.bake_mesh_maps)
+#         self.addAction(bake_maps)
 
     def _create_project(self):
         texture_res = CONSTANTS().TEXTURE_RES
