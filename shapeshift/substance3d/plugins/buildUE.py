@@ -24,7 +24,7 @@ class ShapeshiftMenu(QtWidgets.QMenu):
         create_ue = QtWidgets.QWidgetAction(self)
         create_ue.setText("Create UE Project")
         create_ue.triggered.connect(self._create_project)
-        self.addAction(_create_ue)
+        self.addAction(create_ue)
 
 #         mesh_map = baketools.MeshMap(self._mesh_file_path)
 #         bake_maps = QtWidgets.QWidgetAction(self)

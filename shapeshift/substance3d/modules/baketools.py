@@ -8,6 +8,7 @@ import tempfile
 # import substance_painter.exception as painter_exc
 import substance_painter.logging as painter_log
 
+from shapeshift.common import command
 # from shapeshift.common.constants import _const as CONSTANTS
 
 
