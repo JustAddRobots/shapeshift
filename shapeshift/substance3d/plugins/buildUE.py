@@ -20,8 +20,8 @@ plugin_widgets = []
 class Worker(QtCore.QObject):
 
     def __init__(self):
-        self._finished = QtCore.pyqtSignal()
-        self._result = QtCore.pyqtSignal(object)
+        self._finished = QtCore.Signal()
+        self._result = QtCore.Signal(object)
 
     @property
     def finished(self):
