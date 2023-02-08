@@ -20,7 +20,7 @@ class MeshMap():
     def __init__(self, mesh_file_path):
         self._mesh_file_path = mesh_file_path
         self._sbsbaker_path = self._get_sbsbaker_path()
-        self._baked_mesh_maps = self._get_baked_mesh_maps()
+        # self._baked_mesh_maps = self._get_baked_mesh_maps()
 
     @property
     def baked_mesh_maps(self):
@@ -148,6 +148,9 @@ class MeshMap():
             pass
             # QT alert
         return baked_mesh_maps
+
+    def get_baked_mesh_maps(self):
+        self._get_baked_mesh_maps()
 
 
 # texset = tex.TextureSet.from_name("M_Structure_Office_Wall_A")
