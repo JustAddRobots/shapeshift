@@ -20,22 +20,23 @@ plugin_widgets = []
 class Worker(QtCore.QObject):
 
     def __init__(self):
-        self._finished = QtCore.Signal()
-        self._result = QtCore.Signal(object)
+        super(Worker, self).__init__()
+        self.finished = QtCore.Signal()
+        self.result = QtCore.Signal(object)
 
-    @property
-    def finished(self):
-        return self._finished
+#     @property
+#     def finished(self):
+#         return self._finished
 
-    @property
-    def result(self):
-        return self._result
+#     @property
+#     def result(self):
+#         return self._result
 
     @QtCore.Slot()
     def run(self, mesh_file_path):
         mm = baketools.MeshMap(mesh_file_path)
         d = mm.get_baked_mesh_maps()
-        self._result.emit(d)
+        self.result.emit(d)
 
 #     @QtCore.Slot()
 #     def run(self, mesh_file_path):
