@@ -2,7 +2,7 @@
 
 import os.path
 from pathlib import Path
-import time
+import pprint
 
 from PySide2 import QtWidgets
 from PySide2 import QtCore
@@ -11,36 +11,24 @@ import substance_painter.logging as painter_log
 import substance_painter.ui as painter_ui
 import substance_painter.project as painter_proj
 
-# from shapeshift.substance3d.modules import baketools
+from shapeshift.substance3d.modules import baketools
 from shapeshift.common.constants import _const as CONSTANTS
 
 plugin_widgets = []
 
 
 class Worker(QtCore.QObject):
+    finished = QtCore.Signal()
+    result = QtCore.Signal(object)
 
     def __init__(self):
         super(Worker, self).__init__()
-        self.finished = QtCore.Signal()
-        self.result = QtCore.Signal(object)
-
-#     @property
-#     def finished(self):
-#         return self._finished
-
-#     @property
-#     def result(self):
-#         return self._result
 
     @QtCore.Slot()
     def run(self, mesh_file_path):
         mm = baketools.MeshMap(mesh_file_path)
         d = mm.get_baked_mesh_maps()
         self.result.emit(d)
-
-#     @QtCore.Slot()
-#     def run(self, mesh_file_path):
-#         return self._run(mesh_file_path)
 
 
 class ShapeshiftMenu(QtWidgets.QMenu):
@@ -75,22 +63,29 @@ class ShapeshiftMenu(QtWidgets.QMenu):
                     f"Project Creation Error: {e}"
                 )
             else:
-                time.sleep(3)
-                self._bake_maps()
+                self.thread = QtCore.QThread()
+                self.worker = Worker()
+                self.worker.moveToThread(self.thread)
+                self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
+                self.worker.finished.connect(self.thread.quit)
+                self.worker.result.connect(self.log_maps)
+                self.worker.finished.connect(self.worker.deleteLater)
+                self.thread.start()
         return None
 
-    def _bake_maps(self):
-        self.thread = QtCore.QThread()
-        self.worker = Worker()
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.result.connect(self.log_maps)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.start()
-        return None
+#     def _bake_maps(self):
+#         self.thread = QtCore.QThread()
+#         self.worker = Worker()
+#         self.worker.moveToThread(self.thread)
+#         self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
+#         self.worker.finished.connect(self.thread.quit)
+#         self.worker.result.connect(self.log_maps)
+#         self.worker.finished.connect(self.worker.deleteLater)
+#         self.thread.finished.connect(self.thread.deleteLater)
+#         self.thread.start()
+#         return None
 
+    @QtCore.Slot()
     def log_maps(self, d):
         painter_log.log(
             painter_log.INFO,

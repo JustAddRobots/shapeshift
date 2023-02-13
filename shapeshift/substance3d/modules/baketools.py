@@ -94,8 +94,8 @@ class MeshMap():
         return result
 
     def _get_baked_mesh_maps(self):
+        baked_mesh_maps = {}
         if os.path.exists(self._mesh_file_path) and self._sbsbaker_path:
-            baked_mesh_maps = {}
             maps_to_bake = (
                 "normal",
                 "normal-world-space",
@@ -150,7 +150,7 @@ class MeshMap():
         return baked_mesh_maps
 
     def get_baked_mesh_maps(self):
-        self._get_baked_mesh_maps()
+        return self._get_baked_mesh_maps()
 
 
 # texset = tex.TextureSet.from_name("M_Structure_Office_Wall_A")
