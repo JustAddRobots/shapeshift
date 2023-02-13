@@ -31,6 +31,24 @@ class Worker(QtCore.QObject):
         self.result.emit(d)
 
 
+class CreateUEDialog(QWidgets.QDialog):
+
+    def __init__(self):
+        super().__init__(parent=painter_ui.get_main_window())
+
+        self.setWindowTitle("Create UE Project")
+        buttons = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        self.button_box = QtWidgets.QDialogButtonBox(buttons)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+        self.layout = QtWidgets.QVboxLayout()
+        message = QtWidgets.QLabel("Lorem Ipsum")
+        self.layout.addWidget(message)
+        self.layout.addWidget(self.button_box)
+        self.setLayout(self.layout)
+
+
 class ShapeshiftMenu(QtWidgets.QMenu):
 
     def __init__(self):
@@ -39,8 +57,25 @@ class ShapeshiftMenu(QtWidgets.QMenu):
 
         create_ue = QtWidgets.QWidgetAction(self)
         create_ue.setText("Create UE Project")
-        create_ue.triggered.connect(self._create_project)
+        # create_ue.triggered.connect(self._create_project)
+        create_ue.triggered.connect(self.create_project)
         self.addAction(create_ue)
+
+    def create_project(self):
+        # dialog = QtWidgets.QDialog(parent=painter_ui.get_main_window())
+        dialog = CreateUEDialog()
+        if dialog.exec_():
+            painter_log.log(
+                painter_log.INFO,
+                "shapeshift",
+                "OK"
+            )
+        else:
+            painter_log.log(
+                painter_log.INFO,
+                "shapeshift",
+                "Cancel"
+            )
 
     def _create_project(self):
         texture_res = CONSTANTS().TEXTURE_RES
