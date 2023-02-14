@@ -6,13 +6,15 @@ from pathlib import Path
 
 from PySide2.QtWidgets import (
     QCheckBox,
-    QCombobox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
+    QSpacerItem,
     QToolButton,
     QVBoxLayout,
     QWidgetAction,
@@ -60,10 +62,11 @@ class CreateUEDialog(QDialog):
         self.button_box = QDialogButtonBox(buttons)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
+        self.button_box_spacer = QSpacerItem(0, 20)
 
-        self.main_layout = QVBoxLayout()
+        self.main_layout = QVBoxLayout(self)
 
-        self.mesh_file_layout = QHBoxLayout()
+        self.mesh_file_layout = QHBoxLayout(self)
         self.mesh_file_label = QLabel(self)
         self.mesh_file_label.setText("Mesh File")
         self.mesh_file_label.setAlignment(Qt.AlignLeft)
@@ -71,31 +74,37 @@ class CreateUEDialog(QDialog):
         self.mesh_file_button = QToolButton(self)
         self.mesh_file_label.setBuddy(self.mesh_file_line)
 
-        self.mesh_file_layout.addWidget(self.mesh_file_label)
         self.mesh_file_layout.addWidget(self.mesh_file_line)
         self.mesh_file_layout.addWidget(self.mesh_file_button)
 
         self.mesh_map_layout = QHBoxLayout(self)
         self.bake_checkbox = QCheckBox("Bake Mesh Maps", self)
         self.bake_checkbox.setCheckState(Qt.Checked)  # isChecked()
-        self.texture_res_box = QCombobox(self)
-        self.texture_res_box.addItems = [
-            512,
-            1024,
-            2048,
-            4096
-        ]
+        self.mesh_map_spacer = QSpacerItem(60, 0)
+        self.texture_res_box = QComboBox(parent=self)
+        self.texture_res_box.addItems([
+            "256",
+            "512",
+            "1024",
+            "2048",
+            "4096"
+        ])
         self.texture_res_box.setCurrentIndex(2)
-        self.texture_res_label = Qlabel("Texture Resolution")
-        self.texture_res_label.setBuddy(texture_res_box)
+        self.texture_res_label = QLabel(self)
+        self.texture_res_label.setText("Texture Resolution")
+        self.texture_res_label.setBuddy(self.texture_res_box)
 
         self.mesh_map_layout.addWidget(self.bake_checkbox)
+        self.mesh_map_layout.addSpacerItem(self.mesh_map_spacer)
+        self.mesh_map_layout.addWidget(self.texture_res_label)
         self.mesh_map_layout.addWidget(self.texture_res_box)
 
-        self.main_layout.addWidget(mesh_file_layout)
-        self.main_layout.addWidget(mesh_map_layout)
+        self.main_layout.addWidget(self.mesh_file_label)
+        self.main_layout.addLayout(self.mesh_file_layout)
+        self.main_layout.addLayout(self.mesh_map_layout)
+        self.main_layout.addSpacerItem(self.button_box_spacer)
         self.main_layout.addWidget(self.button_box)
-        self.setLayout(self.layout)
+        self.setLayout(self.main_layout)
 
 
 class ShapeshiftMenu(QMenu):
@@ -105,7 +114,7 @@ class ShapeshiftMenu(QMenu):
         self._mesh_file_path = ""
 
         create_ue = QWidgetAction(self)
-        create_ue.setText("Create UE Project")
+        create_ue.setText("Create UE Project...")
         # create_ue.triggered.connect(self._create_project)
         create_ue.triggered.connect(self.create_project)
         self.addAction(create_ue)
