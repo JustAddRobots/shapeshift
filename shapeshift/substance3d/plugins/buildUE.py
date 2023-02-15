@@ -14,6 +14,7 @@ from PySide2.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPushButton,
     QSpacerItem,
     QToolButton,
     QVBoxLayout,
@@ -66,11 +67,9 @@ class CreateUEDialog(QDialog):
         self.cancel_button.setDefault(True)
         # buttons = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         # self.button_box = QDialogButtonBox(buttons)
-        # self.button_box.accepted.connect(self.accept)
-        # self.button_box.rejected.connect(self.reject)
         self.button_box = QDialogButtonBox(self)
-        self.button_box.addButton(create_button, QDialogButtonBox.AcceptRole)
-        self.button_box.addButton(cancel_button, QDialogButtonBox.RejectRole)
+        self.button_box.addButton(self.create_button, QDialogButtonBox.AcceptRole)
+        self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
         self.button_box_spacer = QSpacerItem(0, 20)
 
         self.main_layout = QVBoxLayout(self)
@@ -115,8 +114,14 @@ class CreateUEDialog(QDialog):
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
         self.mesh_file_button.clicked.connect(self.onMeshFileButtonClicked)
+        self.mesh_file_line.editingFinished.connect(self.onMeshFileLineEdited)
         self.bake_checkbox.stateChanged.connect(self.onBakeCheckboxChanged)
+
+    def onMeshFileLineEdited(self):
+        self.enable_buttons(self.mesh_file_line.text())
 
     def onMeshFileButtonClicked(self):
         mesh_file_path, _ = QFileDialog.getOpenFileName(
@@ -125,6 +130,9 @@ class CreateUEDialog(QDialog):
             str(Path.home()),
             "Static Mesh Files (*.fbx)"
         )
+        self.enable_buttons(mesh_file_path)
+
+    def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
         if p.exists():
             self.mesh_file_line.setText(mesh_file_path)
@@ -160,7 +168,7 @@ class ShapeshiftMenu(QMenu):
                 "shapeshift",
                 (
                     f"OK: "
-                    f"mesh_file_path: {dialog.mesh_file_path.text()} "
+                    f"mesh_file_path: {dialog.mesh_file_line.text()} "
                     f"bake_checkbox: {dialog.bake_checkbox.checkState()} "
                     f"texture_res_box: {dialog.texture_res_box.currentText()} "
                 )
