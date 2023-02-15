@@ -14,6 +14,7 @@ from PySide2.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPushButton,
     QSpacerItem,
     QToolButton,
     QVBoxLayout,
@@ -58,10 +59,15 @@ class CreateUEDialog(QDialog):
         super().__init__(parent=painter_ui.get_main_window())
 
         self.setWindowTitle("Create UE Project")
-        buttons = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
-        self.button_box = QDialogButtonBox(buttons)
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
+        self.create_button = QPushButton("Create", self)
+        self.create_button.setEnabled(False)
+        self.create_button.setDefault(False)
+        self.cancel_button = QPushButton("Cancel", self)
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.setDefault(True)
+        self.button_box = QDialogButtonBox(self)
+        self.button_box.addButton(self.create_button, QDialogButtonBox.AcceptRole)
+        self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
         self.button_box_spacer = QSpacerItem(0, 20)
 
         self.main_layout = QVBoxLayout(self)
@@ -79,7 +85,7 @@ class CreateUEDialog(QDialog):
 
         self.mesh_map_layout = QHBoxLayout(self)
         self.bake_checkbox = QCheckBox("Bake Mesh Maps", self)
-        self.bake_checkbox.setCheckState(Qt.Checked)  # isChecked()
+        self.bake_checkbox.setCheckState(Qt.Checked)
         self.mesh_map_spacer = QSpacerItem(60, 0)
         self.texture_res_box = QComboBox(parent=self)
         self.texture_res_box.addItems([
@@ -89,7 +95,7 @@ class CreateUEDialog(QDialog):
             "2048",
             "4096"
         ])
-        self.texture_res_box.setCurrentIndex(2)
+        self.texture_res_box.setCurrentIndex(3)
         self.texture_res_label = QLabel(self)
         self.texture_res_label.setText("Texture Resolution")
         self.texture_res_label.setBuddy(self.texture_res_box)
@@ -105,6 +111,38 @@ class CreateUEDialog(QDialog):
         self.main_layout.addSpacerItem(self.button_box_spacer)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
+
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.mesh_file_button.clicked.connect(self.onMeshFileButtonClicked)
+        self.mesh_file_line.editingFinished.connect(self.onMeshFileLineEdited)
+        self.bake_checkbox.stateChanged.connect(self.onBakeCheckboxChanged)
+
+    def onMeshFileLineEdited(self):
+        self.enable_buttons(self.mesh_file_line.text())
+
+    def onMeshFileButtonClicked(self):
+        mesh_file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Static Mesh",
+            str(Path.home()),
+            "Static Mesh Files (*.fbx)"
+        )
+        self.enable_buttons(mesh_file_path)
+
+    def enable_buttons(self, mesh_file_path):
+        p = Path(mesh_file_path)
+        if mesh_file_path and p.exists():
+            self.mesh_file_line.setText(mesh_file_path)
+            self.create_button.setEnabled(True)
+            self.create_button.setDefault(True)
+            self.cancel_button.setDefault(False)
+
+    def onBakeCheckboxChanged(self):
+        if self.bake_checkbox.isChecked():
+            self.texture_res_box.setEnabled(True)
+        else:
+            self.texture_res_box.setEnabled(False)
 
 
 class ShapeshiftMenu(QMenu):
@@ -126,7 +164,12 @@ class ShapeshiftMenu(QMenu):
             painter_log.log(
                 painter_log.INFO,
                 "shapeshift",
-                "OK"
+                (
+                    f"OK: "
+                    f"mesh_file_path: {dialog.mesh_file_line.text()} "
+                    f"bake_checkbox: {dialog.bake_checkbox.checkState()} "
+                    f"texture_res_box: {dialog.texture_res_box.currentText()} "
+                )
             )
         else:
             painter_log.log(
