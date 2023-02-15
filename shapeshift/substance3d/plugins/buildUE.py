@@ -65,8 +65,6 @@ class CreateUEDialog(QDialog):
         self.cancel_button = QPushButton("Cancel", self)
         self.cancel_button.setEnabled(True)
         self.cancel_button.setDefault(True)
-        # buttons = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
-        # self.button_box = QDialogButtonBox(buttons)
         self.button_box = QDialogButtonBox(self)
         self.button_box.addButton(self.create_button, QDialogButtonBox.AcceptRole)
         self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
@@ -87,7 +85,7 @@ class CreateUEDialog(QDialog):
 
         self.mesh_map_layout = QHBoxLayout(self)
         self.bake_checkbox = QCheckBox("Bake Mesh Maps", self)
-        self.bake_checkbox.setCheckState(Qt.Checked)  # isChecked()
+        self.bake_checkbox.setCheckState(Qt.Checked)
         self.mesh_map_spacer = QSpacerItem(60, 0)
         self.texture_res_box = QComboBox(parent=self)
         self.texture_res_box.addItems([
@@ -134,7 +132,7 @@ class CreateUEDialog(QDialog):
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
-        if p.exists():
+        if mesh_file_path and p.exists():
             self.mesh_file_line.setText(mesh_file_path)
             self.create_button.setEnabled(True)
             self.create_button.setDefault(True)
