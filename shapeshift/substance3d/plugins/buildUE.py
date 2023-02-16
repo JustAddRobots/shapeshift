@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import os.path
 import pprint
 from pathlib import Path
 
@@ -34,7 +33,7 @@ import substance_painter.ui as painter_ui
 import substance_painter.project as painter_proj
 
 from shapeshift.substance3d.modules import baketools
-from shapeshift.common.constants import _const as CONSTANTS
+# from shapeshift.common.constants import _const as CONSTANTS
 
 plugin_widgets = []
 
@@ -53,12 +52,25 @@ class Worker(QObject):
         self.result.emit(d)
 
 
-class CreateUEDialog(QDialog):
+class ShapeshiftDialog(QDialog):
 
     def __init__(self):
+        # super().__init__()
+        # super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
         super().__init__(parent=painter_ui.get_main_window())
+        self.initUI()
+
+    def initUI(self):
+        # self.app_menu = QMenu(parent=painter_ui.get_main_window())
+        self.app_menu = QMenu(parent=self)
+        self.app_menu.setTitle("Shapeshift")
+        self.create_action = QWidgetAction(self)
+        self.create_action.setText("Create UE Project...")
+        self.create_action.triggered.connect(self.create_project)
+        self.app_menu.addAction(self.create_action)
 
         self.setWindowTitle("Create UE Project")
+
         self.create_button = QPushButton("Create", self)
         self.create_button.setEnabled(False)
         self.create_button.setDefault(False)
@@ -112,11 +124,20 @@ class CreateUEDialog(QDialog):
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
-        self.button_box.accepted.connect(self.accept)
+        # self.button_box.accepted.connect(self.accept)
+        self.button_box.accepted.connect(self.create_project)
         self.button_box.rejected.connect(self.reject)
         self.mesh_file_button.clicked.connect(self.onMeshFileButtonClicked)
         self.mesh_file_line.editingFinished.connect(self.onMeshFileLineEdited)
         self.bake_checkbox.stateChanged.connect(self.onBakeCheckboxChanged)
+
+    def enable_buttons(self, mesh_file_path):
+        p = Path(mesh_file_path)
+        if mesh_file_path and p.exists():
+            self.mesh_file_line.setText(mesh_file_path)
+            self.create_button.setEnabled(True)
+            self.create_button.setDefault(True)
+            self.cancel_button.setDefault(False)
 
     def onMeshFileLineEdited(self):
         self.enable_buttons(self.mesh_file_line.text())
@@ -130,122 +151,36 @@ class CreateUEDialog(QDialog):
         )
         self.enable_buttons(mesh_file_path)
 
-    def enable_buttons(self, mesh_file_path):
-        p = Path(mesh_file_path)
-        if mesh_file_path and p.exists():
-            self.mesh_file_line.setText(mesh_file_path)
-            self.create_button.setEnabled(True)
-            self.create_button.setDefault(True)
-            self.cancel_button.setDefault(False)
-
     def onBakeCheckboxChanged(self):
         if self.bake_checkbox.isChecked():
             self.texture_res_box.setEnabled(True)
         else:
             self.texture_res_box.setEnabled(False)
 
+    def get_dialog_vars(self):
+        vars = {}
+        vars["mesh_file_path"] = self.mesh_file_line.text()
 
-class ShapeshiftMenu(QMenu):
+        if self.bake_checkbox.checkState() == Qt.CheckState.Checked:
+            vars["is_bake_maps_checked"] = True
+        elif self.bake_checkbox.checkState() == Qt.CheckState.Unchecked:
+            vars["is_bake_maps_checked"] = False
 
-    def __init__(self):
-        super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
-        self._mesh_file_path = ""
-
-        create_ue = QWidgetAction(self)
-        create_ue.setText("Create UE Project...")
-        # create_ue.triggered.connect(self._create_project)
-        create_ue.triggered.connect(self.create_project)
-        self.addAction(create_ue)
-
-    def create_project(self):
-        # dialog = QDialog(parent=painter_ui.get_main_window())
-        dialog = CreateUEDialog()
-        if dialog.exec_():
-            painter_log.log(
-                painter_log.INFO,
-                "shapeshift",
-                (
-                    f"OK: "
-                    f"mesh_file_path: {dialog.mesh_file_line.text()} "
-                    f"bake_checkbox: {dialog.bake_checkbox.checkState()} "
-                    f"texture_res_box: {dialog.texture_res_box.currentText()} "
-                )
-            )
-        else:
-            painter_log.log(
-                painter_log.INFO,
-                "shapeshift",
-                "Cancel"
-            )
-
-    def _create_project(self):
-        texture_res = CONSTANTS().TEXTURE_RES
-        self._mesh_file_path = self._get_mesh_file_path()
-        if self._mesh_file_path:
-            project_settings = self._get_project_settings(
-                self._mesh_file_path,
-                texture_res
-            )
-            try:
-                painter_proj.create(
-                    self._mesh_file_path,
-                    # template_file_path=
-                    settings=project_settings
-                )
-            except (painter_exc.ProjectError, ValueError) as e:
-                painter_log.log(
-                    painter_log.ERROR,
-                    "shapeshift",
-                    f"Project Creation Error: {e}"
-                )
-            else:
-                self.thread = QThread()
-                self.worker = Worker()
-                self.worker.moveToThread(self.thread)
-                self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
-                self.worker.finished.connect(self.thread.quit)
-                self.worker.result.connect(self.log_maps)
-                self.worker.finished.connect(self.worker.deleteLater)
-                self.thread.start()
-        return None
-
-#     def _bake_maps(self):
-#         self.thread = QThread()
-#         self.worker = Worker()
-#         self.worker.moveToThread(self.thread)
-#         self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
-#         self.worker.finished.connect(self.thread.quit)
-#         self.worker.result.connect(self.log_maps)
-#         self.worker.finished.connect(self.worker.deleteLater)
-#         self.thread.finished.connect(self.thread.deleteLater)
-#         self.thread.start()
-#         return None
-
-    @Slot()
-    def log_maps(self, d):
-        painter_log.log(
-            painter_log.INFO,
-            "shapeshift",
-            pprint.saferepr(d)
-        )
-
-    def _get_mesh_file_path(self):
-        mesh_file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open Static Mesh",
-            str(Path.home()),
-            "Static Mesh Files (*.fbx)"
-        )
-        if not mesh_file_path:
+        try:
+            texture_res = int(self.texture_res_box.currentText())
+        except ValueError as e:
             painter_log.log(
                 painter_log.ERROR,
                 "shapeshift",
-                "No mesh file selected"
+                f"Texture Resolution Error: {e}"
             )
-        return mesh_file_path
+        else:
+            vars["texture_res"] = texture_res
 
-    def _get_project_settings(self, mesh_file_path, texture_res):
-        texture_dir_path = os.path.dirname(mesh_file_path).replace(
+        return vars
+
+    def get_project_settings(self, mesh_file_path, texture_res):
+        texture_dir_path = str(Path(mesh_file_path).parent).replace(
             "Meshes",
             "Textures"
         )
@@ -259,13 +194,194 @@ class ShapeshiftMenu(QMenu):
         )
         return project_settings
 
+    def create_project(self):
+        if self.exec_():
+            vars = self.get_dialog_vars()
+            project_settings = self.get_project_settings(
+                vars["mesh_file_path"],
+                vars["texture_res"]
+            )
+            try:
+                painter_proj.create(
+                    vars["mesh_file_path"],
+                    # template_file_path=
+                    settings=project_settings
+                )
+            except (painter_exc.ProjectError, ValueError) as e:
+                painter_log.log(
+                    painter_log.ERROR,
+                    "shapeshift",
+                    f"Project Creation Error: {e}"
+                )
+            else:
+                if vars["is_bake_maps_checked"]:
+                    self.bake_maps()
+        else:
+            painter_log.log(
+                painter_log.INFO,
+                "shapeshift",
+                "Cancel"
+            )
+
+    def bake_maps(self):
+        self.thread = QThread()
+        self.worker = Worker()
+        self.worker.moveToThread(self.thread)
+        self.thread.started.connect(lambda: self.worker.run(self.mesh_file_line.text()))
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.result.connect(self.log_maps)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.thread.start()
+
+    @Slot()
+    def log_maps(self, d):
+        painter_log.log(
+            painter_log.INFO,
+            "shapeshift",
+            pprint.saferepr(d)
+        )
+
+#         if dialog.exec_():
+#             painter_log.log(
+#                 painter_log.INFO,
+#                 "shapeshift",
+#                 (
+#                     f"OK: "
+#                     f"mesh_file_path: {dialog.mesh_file_line.text()} "
+#                     f"bake_checkbox: {dialog.bake_checkbox.checkState()} "
+#                     f"texture_res_box: {dialog.texture_res_box.currentText()} "
+#                 )
+#             )
+#         else:
+#             painter_log.log(
+#                 painter_log.INFO,
+#                 "shapeshift",
+#                 "Cancel"
+#             )
+
+
+# class ShapeshiftMenu(QMenu):
+#
+#     def __init__(self):
+#         super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
+#         self._mesh_file_path = ""
+#
+#         create_ue = QWidgetAction(self)
+#         create_ue.setText("Create UE Project...")
+#         # create_ue.triggered.connect(self._create_project)
+#         create_ue.triggered.connect(self.create_project)
+#         self.addAction(create_ue)
+
+#     def create_project(self):
+#         # dialog = QDialog(parent=painter_ui.get_main_window())
+#         dialog = CreateUEDialog()
+#         if dialog.exec_():
+#             painter_log.log(
+#                 painter_log.INFO,
+#                 "shapeshift",
+#                 (
+#                     f"OK: "
+#                     f"mesh_file_path: {dialog.mesh_file_line.text()} "
+#                     f"bake_checkbox: {dialog.bake_checkbox.checkState()} "
+#                     f"texture_res_box: {dialog.texture_res_box.currentText()} "
+#                 )
+#             )
+#         else:
+#             painter_log.log(
+#                 painter_log.INFO,
+#                 "shapeshift",
+#                 "Cancel"
+#             )
+
+#     def _create_project(self):
+#         texture_res = CONSTANTS().TEXTURE_RES
+#         self._mesh_file_path = self._get_mesh_file_path()
+#         if self._mesh_file_path:
+#             project_settings = self._get_project_settings(
+#                 self._mesh_file_path,
+#                 texture_res
+#             )
+#             try:
+#                 painter_proj.create(
+#                     self._mesh_file_path,
+#                     # template_file_path=
+#                     settings=project_settings
+#                 )
+#             except (painter_exc.ProjectError, ValueError) as e:
+#                 painter_log.log(
+#                     painter_log.ERROR,
+#                     "shapeshift",
+#                     f"Project Creation Error: {e}"
+#                 )
+#             else:
+#                 self.thread = QThread()
+#                 self.worker = Worker()
+#                 self.worker.moveToThread(self.thread)
+#                 self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
+#                 self.worker.finished.connect(self.thread.quit)
+#                 self.worker.result.connect(self.log_maps)
+#                 self.worker.finished.connect(self.worker.deleteLater)
+#                 self.thread.start()
+#         return None
+
+#     def _bake_maps(self):
+#         self.thread = QThread()
+#         self.worker = Worker()
+#         self.worker.moveToThread(self.thread)
+#         self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
+#         self.worker.finished.connect(self.thread.quit)
+#         self.worker.result.connect(self.log_maps)
+#         self.worker.finished.connect(self.worker.deleteLater)
+#         self.thread.finished.connect(self.thread.deleteLater)
+#         self.thread.start()
+#         return None
+
+#     @Slot()
+#     def log_maps(self, d):
+#         painter_log.log(
+#             painter_log.INFO,
+#             "shapeshift",
+#             pprint.saferepr(d)
+#         )
+
+#     def _get_mesh_file_path(self):
+#         mesh_file_path, _ = QFileDialog.getOpenFileName(
+#             self,
+#             "Open Static Mesh",
+#             str(Path.home()),
+#             "Static Mesh Files (*.fbx)"
+#         )
+#         if not mesh_file_path:
+#             painter_log.log(
+#                 painter_log.ERROR,
+#                 "shapeshift",
+#                 "No mesh file selected"
+#             )
+#         return mesh_file_path
+
+#     def _get_project_settings(self, mesh_file_path, texture_res):
+#         texture_dir_path = os.path.dirname(mesh_file_path).replace(
+#             "Meshes",
+#             "Textures"
+#         )
+#         project_settings = painter_proj.Settings(
+#             # default_save_path
+#             default_texture_resolution=texture_res,
+#             export_path=texture_dir_path,
+#             import_cameras=False,
+#             normal_map_format=painter_proj.NormalMapFormat.DirectX,
+#             tangent_space_mode=painter_proj.TangentSpace.PerFragment
+#         )
+#         return project_settings
+
 
 def start_plugin():
-    shapeshift_menu = ShapeshiftMenu()
+    shapeshift_dialog = ShapeshiftDialog()
     painter_ui.add_menu(
-        shapeshift_menu
+        shapeshift_dialog.app_menu
     )
-    plugin_widgets.append(shapeshift_menu)
+    plugin_widgets.append(shapeshift_dialog)
     return None
 
 
