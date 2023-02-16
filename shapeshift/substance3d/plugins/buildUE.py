@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import pprint
 from pathlib import Path
 
@@ -31,11 +32,23 @@ import substance_painter.exception as painter_exc
 import substance_painter.logging as painter_log
 import substance_painter.ui as painter_ui
 import substance_painter.project as painter_proj
-
 from shapeshift.substance3d.modules import baketools
-# from shapeshift.common.constants import _const as CONSTANTS
 
+logger = logging.getLogger(__name__)
 plugin_widgets = []
+
+
+class Dialogger(logging.Handler, QObject):
+    update = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        logging.Handler.__init__(self)
+        QObject.__init__(self)
+
+    def emit(self, record):
+        msg = str(record.getMessage())
+        self.update.emit(msg)
 
 
 class Worker(QObject):
@@ -52,7 +65,7 @@ class Worker(QObject):
         self.result.emit(d)
 
 
-class ShapeshiftDialog(QDialog):
+class ShapeshiftDialog(QDialog, QPlainTextEdit):
 
     def __init__(self):
         # super().__init__()
@@ -81,6 +94,13 @@ class ShapeshiftDialog(QDialog):
         self.button_box.addButton(self.create_button, QDialogButtonBox.AcceptRole)
         self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
         self.button_box_spacer = QSpacerItem(0, 20)
+
+        self.log_box = QTextEdit(self)
+        self.log_box.setReadOnly(True)
+
+        # self.log_box.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        # logging.getLogger().addHandler(self.log_box)
+        # logging.getLogger().setLevel(logging.DEBUG)
 
         self.main_layout = QVBoxLayout(self)
 
@@ -121,6 +141,7 @@ class ShapeshiftDialog(QDialog):
         self.main_layout.addLayout(self.mesh_file_layout)
         self.main_layout.addLayout(self.mesh_map_layout)
         self.main_layout.addSpacerItem(self.button_box_spacer)
+        self.main_layout.addWidget(self.log_box)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
@@ -130,6 +151,10 @@ class ShapeshiftDialog(QDialog):
         self.mesh_file_button.clicked.connect(self.onMeshFileButtonClicked)
         self.mesh_file_line.editingFinished.connect(self.onMeshFileLineEdited)
         self.bake_checkbox.stateChanged.connect(self.onBakeCheckboxChanged)
+
+        dialogger = Dialogger()
+        dialogger.update.connect(self.log_box.append)
+        logger.addHandler(dialogger)
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
