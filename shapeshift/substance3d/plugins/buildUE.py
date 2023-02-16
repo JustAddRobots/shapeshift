@@ -201,27 +201,41 @@ class ShapeshiftDialog(QDialog):
                 vars["mesh_file_path"],
                 vars["texture_res"]
             )
-            try:
-                painter_proj.create(
-                    vars["mesh_file_path"],
-                    # template_file_path=
-                    settings=project_settings
-                )
-            except (painter_exc.ProjectError, ValueError) as e:
+            if painter_proj.is_open():
                 painter_log.log(
                     painter_log.ERROR,
                     "shapeshift",
-                    f"Project Creation Error: {e}"
+                    f"Project Already Open Error: {painter_proj.name()}"
                 )
             else:
-                if vars["is_bake_maps_checked"]:
-                    self.bake_maps()
+                try:
+                    painter_proj.create(
+                        vars["mesh_file_path"],
+                        # template_file_path=
+                        settings=project_settings
+                    )
+                except (painter_exc.ProjectError, ValueError) as e:
+                    painter_log.log(
+                        painter_log.ERROR,
+                        "shapeshift",
+                        f"Project Creation Error: {e}"
+                    )
+                else:
+                    if vars["is_bake_maps_checked"]:
+                        # self.bake_maps()
+                        self.bake_maps_inline()
+                self.accept()
         else:
             painter_log.log(
                 painter_log.INFO,
                 "shapeshift",
                 "Cancel"
             )
+
+    def bake_maps_inline(self):
+        mm = baketools.MeshMap(self.mesh_file_line.text())
+        d = mm.get_baked_mesh_maps()
+        self.log_maps(d)
 
     def bake_maps(self):
         self.thread = QThread()
