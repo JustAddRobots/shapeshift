@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import logging
 import pprint
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from PySide2.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPlainTextEdit,
     QPushButton,
     QSpacerItem,
     QToolButton,
@@ -28,27 +28,14 @@ from PySide2.QtCore import (
     Slot,
 )
 
+import substance_painter.event as painter_ev
 import substance_painter.exception as painter_exc
 import substance_painter.logging as painter_log
 import substance_painter.ui as painter_ui
 import substance_painter.project as painter_proj
 from shapeshift.substance3d.modules import baketools
 
-logger = logging.getLogger(__name__)
 plugin_widgets = []
-
-
-class Dialogger(logging.Handler, QObject):
-    update = Signal(str)
-
-    def __init__(self):
-        super().__init__()
-        logging.Handler.__init__(self)
-        QObject.__init__(self)
-
-    def emit(self, record):
-        msg = str(record.getMessage())
-        self.update.emit(msg)
 
 
 class Worker(QObject):
@@ -59,10 +46,10 @@ class Worker(QObject):
         super(Worker, self).__init__()
 
     @Slot()
-    def run(self, mesh_file_path):
-        mm = baketools.MeshMap(mesh_file_path)
-        d = mm.get_baked_mesh_maps()
-        self.result.emit(d)
+    def run(self, mesh_file_path, texture_res):
+        mm = baketools.MeshMap(mesh_file_path, texture_res)
+        dict_ = mm.get_baked_mesh_maps()
+        self.result.emit(dict_)
 
 
 class ShapeshiftDialog(QDialog, QPlainTextEdit):
@@ -94,13 +81,6 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         self.button_box.addButton(self.create_button, QDialogButtonBox.AcceptRole)
         self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
         self.button_box_spacer = QSpacerItem(0, 20)
-
-        self.log_box = QTextEdit(self)
-        self.log_box.setReadOnly(True)
-
-        # self.log_box.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        # logging.getLogger().addHandler(self.log_box)
-        # logging.getLogger().setLevel(logging.DEBUG)
 
         self.main_layout = QVBoxLayout(self)
 
@@ -145,16 +125,14 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
-        # self.button_box.accepted.connect(self.accept)
         self.button_box.accepted.connect(self.create_project)
         self.button_box.rejected.connect(self.reject)
         self.mesh_file_button.clicked.connect(self.onMeshFileButtonClicked)
         self.mesh_file_line.editingFinished.connect(self.onMeshFileLineEdited)
         self.bake_checkbox.stateChanged.connect(self.onBakeCheckboxChanged)
 
-        dialogger = Dialogger()
-        dialogger.update.connect(self.log_box.append)
-        logger.addHandler(dialogger)
+        self.dispatcher = painter_ev.Dispatcher
+        self.dispatcher.connect(painter_ev.ProjectEditionEntered, self.bake_maps)
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
@@ -220,42 +198,30 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         return project_settings
 
     def create_project(self):
-        if self.exec_():
-            vars = self.get_dialog_vars()
-            project_settings = self.get_project_settings(
-                vars["mesh_file_path"],
-                vars["texture_res"]
+        vars = self.get_dialog_vars()
+        project_settings = self.get_project_settings(
+            vars["mesh_file_path"],
+            vars["texture_res"]
+        )
+        if painter_proj.is_open():
+            painter_log.log(
+                painter_log.ERROR,
+                "shapeshift",
+                f"Project Already Open Error: {painter_proj.name()}"
             )
-            if painter_proj.is_open():
+        else:
+            try:
+                painter_proj.create(
+                    vars["mesh_file_path"],
+                    # template_file_path=
+                    settings=project_settings
+                )
+            except (painter_exc.ProjectError, ValueError) as e:
                 painter_log.log(
                     painter_log.ERROR,
                     "shapeshift",
-                    f"Project Already Open Error: {painter_proj.name()}"
+                    f"Project Creation Error: {e}"
                 )
-            else:
-                try:
-                    painter_proj.create(
-                        vars["mesh_file_path"],
-                        # template_file_path=
-                        settings=project_settings
-                    )
-                except (painter_exc.ProjectError, ValueError) as e:
-                    painter_log.log(
-                        painter_log.ERROR,
-                        "shapeshift",
-                        f"Project Creation Error: {e}"
-                    )
-                else:
-                    if vars["is_bake_maps_checked"]:
-                        # self.bake_maps()
-                        self.bake_maps_inline()
-                self.accept()
-        else:
-            painter_log.log(
-                painter_log.INFO,
-                "shapeshift",
-                "Cancel"
-            )
 
     def bake_maps_inline(self):
         mm = baketools.MeshMap(self.mesh_file_line.text())
@@ -263,10 +229,13 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         self.log_maps(d)
 
     def bake_maps(self):
+        vars = self.get_dialog_vars()
         self.thread = QThread()
         self.worker = Worker()
         self.worker.moveToThread(self.thread)
-        self.thread.started.connect(lambda: self.worker.run(self.mesh_file_line.text()))
+        self.thread.started.connect(
+            lambda: self.worker.run(vars["mesh_file_path"], vars["texture_res"])
+        )
         self.worker.finished.connect(self.thread.quit)
         self.worker.result.connect(self.log_maps)
         self.worker.finished.connect(self.worker.deleteLater)
