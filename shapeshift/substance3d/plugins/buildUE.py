@@ -58,9 +58,9 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         # super().__init__()
         # super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
         super().__init__(parent=painter_ui.get_main_window())
-        self.initUI()
+        self.init_UI()
 
-    def initUI(self):
+    def init_UI(self):
         # self.app_menu = QMenu(parent=painter_ui.get_main_window())
         self.app_menu = QMenu(parent=self)
         self.app_menu.setTitle("Shapeshift")
@@ -121,18 +121,22 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         self.main_layout.addLayout(self.mesh_file_layout)
         self.main_layout.addLayout(self.mesh_map_layout)
         self.main_layout.addSpacerItem(self.button_box_spacer)
-        self.main_layout.addWidget(self.log_box)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
         self.button_box.accepted.connect(self.create_project)
         self.button_box.rejected.connect(self.reject)
-        self.mesh_file_button.clicked.connect(self.onMeshFileButtonClicked)
-        self.mesh_file_line.editingFinished.connect(self.onMeshFileLineEdited)
-        self.bake_checkbox.stateChanged.connect(self.onBakeCheckboxChanged)
+        self.mesh_file_button.clicked.connect(self.on_mesh_file_button_clicked)
+        self.mesh_file_line.editingFinished.connect(self.on_mesh_file_line_edited)
+        self.bake_checkbox.stateChanged.connect(self.on_bake_checkbox_changed)
 
-        self.dispatcher = painter_ev.Dispatcher
-        self.dispatcher.connect(painter_ev.ProjectEditionEntered, self.bake_maps)
+        painter_ev.DISPATCHER.connect(
+            painter_ev.ProjectEditionEntered,
+            self.on_project_edition_entered
+        )
+
+    def on_project_edition_entered(self, ev):
+        self.bake_maps()
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
@@ -142,10 +146,10 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
             self.create_button.setDefault(True)
             self.cancel_button.setDefault(False)
 
-    def onMeshFileLineEdited(self):
+    def on_mesh_file_line_edited(self):
         self.enable_buttons(self.mesh_file_line.text())
 
-    def onMeshFileButtonClicked(self):
+    def on_mesh_file_button_clicked(self):
         mesh_file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Open Static Mesh",
@@ -154,7 +158,7 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         )
         self.enable_buttons(mesh_file_path)
 
-    def onBakeCheckboxChanged(self):
+    def on_bake_checkbox_changed(self):
         if self.bake_checkbox.isChecked():
             self.texture_res_box.setEnabled(True)
         else:
@@ -197,6 +201,7 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         )
         return project_settings
 
+    @Slot()
     def create_project(self):
         vars = self.get_dialog_vars()
         project_settings = self.get_project_settings(
