@@ -183,7 +183,7 @@ class ShapeshiftDialog(QDialog):
         else:
             dialog_vars["texture_res"] = texture_res
 
-        painter_log.log(painter_log.INFO, "shapeshift", pprint.saferepr(dialog_vars))
+        painter_log.log(painter_log.DBG_INFO, "shapeshift", pprint.saferepr(dialog_vars))
         return dialog_vars
 
     def get_project_settings(self, mesh_file_path, texture_res):
@@ -247,6 +247,7 @@ class ShapeshiftDialog(QDialog):
             )
             self.worker.finished.connect(self.thread.quit)
             self.worker.result.connect(self.log_maps)
+            self.thread.finished.connect(self.accept)
             self.worker.finished.connect(self.worker.deleteLater)
             self.thread.finished.connect(self.thread.deleteLater)
             self.thread.start()
