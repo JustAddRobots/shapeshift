@@ -13,7 +13,6 @@ from PySide2.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QPlainTextEdit,
     QPushButton,
     QSpacerItem,
     QToolButton,
@@ -52,7 +51,7 @@ class Worker(QObject):
         self.result.emit(dict_)
 
 
-class ShapeshiftDialog(QDialog, QPlainTextEdit):
+class ShapeshiftDialog(QDialog):
 
     def __init__(self):
         # super().__init__()
@@ -66,7 +65,7 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         self.app_menu.setTitle("Shapeshift")
         self.create_action = QWidgetAction(self)
         self.create_action.setText("Create UE Project...")
-        self.create_action.triggered.connect(self.create_project)
+        self.create_action.triggered.connect(self.exec_)
         self.app_menu.addAction(self.create_action)
 
         self.setWindowTitle("Create UE Project")
@@ -165,13 +164,13 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
             self.texture_res_box.setEnabled(False)
 
     def get_dialog_vars(self):
-        vars = {}
-        vars["mesh_file_path"] = self.mesh_file_line.text()
+        dialog_vars = {}
+        dialog_vars["mesh_file_path"] = self.mesh_file_line.text()
 
         if self.bake_checkbox.checkState() == Qt.CheckState.Checked:
-            vars["is_bake_maps_checked"] = True
+            dialog_vars["is_bake_maps_checked"] = True
         elif self.bake_checkbox.checkState() == Qt.CheckState.Unchecked:
-            vars["is_bake_maps_checked"] = False
+            dialog_vars["is_bake_maps_checked"] = False
 
         try:
             texture_res = int(self.texture_res_box.currentText())
@@ -182,9 +181,10 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
                 f"Texture Resolution Error: {e}"
             )
         else:
-            vars["texture_res"] = texture_res
+            dialog_vars["texture_res"] = texture_res
 
-        return vars
+        painter_log.log(painter_log.INFO, "shapeshift", pprint.saferepr(dialog_vars))
+        return dialog_vars
 
     def get_project_settings(self, mesh_file_path, texture_res):
         texture_dir_path = str(Path(mesh_file_path).parent).replace(
@@ -203,10 +203,10 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
 
     @Slot()
     def create_project(self):
-        vars = self.get_dialog_vars()
+        dialog_vars = self.get_dialog_vars()
         project_settings = self.get_project_settings(
-            vars["mesh_file_path"],
-            vars["texture_res"]
+            dialog_vars["mesh_file_path"],
+            dialog_vars["texture_res"]
         )
         if painter_proj.is_open():
             painter_log.log(
@@ -217,7 +217,7 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         else:
             try:
                 painter_proj.create(
-                    vars["mesh_file_path"],
+                    dialog_vars["mesh_file_path"],
                     # template_file_path=
                     settings=project_settings
                 )
@@ -234,18 +234,22 @@ class ShapeshiftDialog(QDialog, QPlainTextEdit):
         self.log_maps(d)
 
     def bake_maps(self):
-        vars = self.get_dialog_vars()
-        self.thread = QThread()
-        self.worker = Worker()
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(
-            lambda: self.worker.run(vars["mesh_file_path"], vars["texture_res"])
-        )
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.result.connect(self.log_maps)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.start()
+        dialog_vars = self.get_dialog_vars()
+        if dialog_vars["is_bake_maps_checked"]:
+            self.thread = QThread()
+            self.worker = Worker()
+            self.worker.moveToThread(self.thread)
+            self.thread.started.connect(
+                lambda: self.worker.run(
+                    dialog_vars["mesh_file_path"],
+                    dialog_vars["texture_res"]
+                )
+            )
+            self.worker.finished.connect(self.thread.quit)
+            self.worker.result.connect(self.log_maps)
+            self.worker.finished.connect(self.worker.deleteLater)
+            self.thread.finished.connect(self.thread.deleteLater)
+            self.thread.start()
 
     @Slot()
     def log_maps(self, d):
