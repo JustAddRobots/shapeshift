@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import multiprocessing
 import pprint
 from pathlib import Path
 
@@ -134,7 +135,8 @@ class ShapeshiftDialog(QDialog):
         )
 
     def on_project_edition_entered(self, ev):
-        self.bake_maps()
+        # self.bake_maps()
+        self.bake_maps_mp()
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
@@ -226,6 +228,37 @@ class ShapeshiftDialog(QDialog):
                     "shapeshift",
                     f"Project Creation Error: {e}"
                 )
+
+    def bake_maps_mp(self):
+        dialog_vars = self.get_dialog_vars()
+        if dialog_vars["is_bake_maps_checked"]:
+            mm = baketools.MeshMap(
+                dialog_vars["mesh_file_path"],
+                dialog_vars["texture_res"]
+            )
+            # dict_ = mm.get_baked_mesh_maps()
+            mpq = multiprocessing.Queue()
+            mproc = multiprocessing.Process(
+                target=mm.get_baked_mesh_maps_mp,
+                name="sbsbaker",
+                args=(mpq, ),
+                daemon=True
+            )
+            mproc.start()
+            while True:
+                if not mpq.empty():
+                    msg = mpq.get()
+                    if msg["status"] in ["PENDING"]:
+                        painter_log.log(
+                            painter_log.INFO,
+                            "shapeshift_mp",
+                            msg["log"]
+                        )
+                    elif msg["status"] in ["COMPLETED"]:
+                        d = msg["maps"]
+                        pprint.saferepr(d)
+                        break
+                time.sleep(0.3)
 
     def bake_maps(self):
         dialog_vars = self.get_dialog_vars()
