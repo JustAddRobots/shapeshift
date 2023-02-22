@@ -236,7 +236,7 @@ class ShapeshiftDialog(QDialog):
     def bake_maps(self):
         dialog_vars = self.get_dialog_vars()
         if dialog_vars["is_bake_maps_checked"]:
-            self.thread = QThread()
+            self.thread = QThread(parent=self)
             self.worker = Worker()
             self.worker.moveToThread(self.thread)
             self.thread.started.connect(
