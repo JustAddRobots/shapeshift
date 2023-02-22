@@ -56,7 +56,7 @@ class ShapeshiftDialog(QDialog):
     def __init__(self):
         # super().__init__()
         # super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
-        super().__init__(parent=painter_ui.get_main_window())
+        super(ShapeshiftDialog, self).__init__(parent=painter_ui.get_main_window())
         self.init_UI()
 
     def init_UI(self):
@@ -70,13 +70,13 @@ class ShapeshiftDialog(QDialog):
 
         self.setWindowTitle("Create UE Project")
 
-        self.create_button = QPushButton("Create", self)
+        self.create_button = QPushButton("Create", parent=self)
         self.create_button.setEnabled(False)
         self.create_button.setDefault(False)
-        self.cancel_button = QPushButton("Cancel", self)
+        self.cancel_button = QPushButton("Cancel", parent=self)
         self.cancel_button.setEnabled(True)
         self.cancel_button.setDefault(True)
-        self.button_box = QDialogButtonBox(self)
+        self.button_box = QDialogButtonBox(parent=self)
         self.button_box.addButton(self.create_button, QDialogButtonBox.AcceptRole)
         self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
         self.button_box_spacer = QSpacerItem(0, 20)
@@ -84,18 +84,18 @@ class ShapeshiftDialog(QDialog):
         self.main_layout = QVBoxLayout(self)
 
         self.mesh_file_layout = QHBoxLayout(self)
-        self.mesh_file_label = QLabel(self)
+        self.mesh_file_label = QLabel(parent=self)
         self.mesh_file_label.setText("Mesh File")
         self.mesh_file_label.setAlignment(Qt.AlignLeft)
-        self.mesh_file_line = QLineEdit(self)
-        self.mesh_file_button = QToolButton(self)
+        self.mesh_file_line = QLineEdit(parent=self)
+        self.mesh_file_button = QToolButton(parent=self)
         self.mesh_file_label.setBuddy(self.mesh_file_line)
 
         self.mesh_file_layout.addWidget(self.mesh_file_line)
         self.mesh_file_layout.addWidget(self.mesh_file_button)
 
         self.mesh_map_layout = QHBoxLayout(self)
-        self.bake_checkbox = QCheckBox("Bake Mesh Maps", self)
+        self.bake_checkbox = QCheckBox("Bake Mesh Maps", parent=self)
         self.bake_checkbox.setCheckState(Qt.Checked)
         self.mesh_map_spacer = QSpacerItem(60, 0)
         self.texture_res_box = QComboBox(parent=self)
@@ -107,7 +107,7 @@ class ShapeshiftDialog(QDialog):
             "4096"
         ])
         self.texture_res_box.setCurrentIndex(3)
-        self.texture_res_label = QLabel(self)
+        self.texture_res_label = QLabel(parent=self)
         self.texture_res_label.setText("Texture Resolution")
         self.texture_res_label.setBuddy(self.texture_res_box)
 
@@ -150,10 +150,10 @@ class ShapeshiftDialog(QDialog):
 
     def on_mesh_file_button_clicked(self):
         mesh_file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open Static Mesh",
-            str(Path.home()),
-            "Static Mesh Files (*.fbx)"
+            parent=self,
+            caption="Open Static Mesh",
+            dir=str(Path.home()),
+            filter="Static Mesh Files (*.fbx)"
         )
         self.enable_buttons(mesh_file_path)
 
