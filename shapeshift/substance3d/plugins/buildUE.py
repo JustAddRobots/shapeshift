@@ -239,15 +239,17 @@ class ShapeshiftDialog(QDialog):
                     dialog_vars["texture_res"]
                 )
             )
-            self.worker.result.connect(self.log_maps)
+            self.worker.result.connect(self.import_maps)
             self.worker.finished.connect(self.thread.quit)
             self.thread.finished.connect(self.accept)
             self.worker.finished.connect(self.worker.deleteLater)
             self.thread.finished.connect(self.thread.deleteLater)
             self.thread.start()
+        else:
+            self.accept
 
     @Slot()
-    def log_maps(self, d):
+    def import_maps(self, d):
         painter_log.log(
             painter_log.INFO,
             "shapeshift",
