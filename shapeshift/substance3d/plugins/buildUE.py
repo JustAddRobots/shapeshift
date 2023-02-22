@@ -49,13 +49,12 @@ class Worker(QObject):
         mm = baketools.MeshMap(mesh_file_path, texture_res)
         dict_ = mm.get_baked_mesh_maps()
         self.result.emit(dict_)
+        self.finished.emit()
 
 
 class ShapeshiftDialog(QDialog):
 
     def __init__(self):
-        # super().__init__()
-        # super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
         super(ShapeshiftDialog, self).__init__(parent=painter_ui.get_main_window())
         self.init_UI()
 
@@ -228,11 +227,6 @@ class ShapeshiftDialog(QDialog):
                     f"Project Creation Error: {e}"
                 )
 
-    def bake_maps_inline(self):
-        mm = baketools.MeshMap(self.mesh_file_line.text())
-        d = mm.get_baked_mesh_maps()
-        self.log_maps(d)
-
     def bake_maps(self):
         dialog_vars = self.get_dialog_vars()
         if dialog_vars["is_bake_maps_checked"]:
@@ -245,8 +239,8 @@ class ShapeshiftDialog(QDialog):
                     dialog_vars["texture_res"]
                 )
             )
-            self.worker.finished.connect(self.thread.quit)
             self.worker.result.connect(self.log_maps)
+            self.worker.finished.connect(self.thread.quit)
             self.thread.finished.connect(self.accept)
             self.worker.finished.connect(self.worker.deleteLater)
             self.thread.finished.connect(self.thread.deleteLater)
@@ -259,139 +253,6 @@ class ShapeshiftDialog(QDialog):
             "shapeshift",
             pprint.saferepr(d)
         )
-
-#         if dialog.exec_():
-#             painter_log.log(
-#                 painter_log.INFO,
-#                 "shapeshift",
-#                 (
-#                     f"OK: "
-#                     f"mesh_file_path: {dialog.mesh_file_line.text()} "
-#                     f"bake_checkbox: {dialog.bake_checkbox.checkState()} "
-#                     f"texture_res_box: {dialog.texture_res_box.currentText()} "
-#                 )
-#             )
-#         else:
-#             painter_log.log(
-#                 painter_log.INFO,
-#                 "shapeshift",
-#                 "Cancel"
-#             )
-
-
-# class ShapeshiftMenu(QMenu):
-#
-#     def __init__(self):
-#         super(ShapeshiftMenu, self).__init__("Shapeshift", parent=None)
-#         self._mesh_file_path = ""
-#
-#         create_ue = QWidgetAction(self)
-#         create_ue.setText("Create UE Project...")
-#         # create_ue.triggered.connect(self._create_project)
-#         create_ue.triggered.connect(self.create_project)
-#         self.addAction(create_ue)
-
-#     def create_project(self):
-#         # dialog = QDialog(parent=painter_ui.get_main_window())
-#         dialog = CreateUEDialog()
-#         if dialog.exec_():
-#             painter_log.log(
-#                 painter_log.INFO,
-#                 "shapeshift",
-#                 (
-#                     f"OK: "
-#                     f"mesh_file_path: {dialog.mesh_file_line.text()} "
-#                     f"bake_checkbox: {dialog.bake_checkbox.checkState()} "
-#                     f"texture_res_box: {dialog.texture_res_box.currentText()} "
-#                 )
-#             )
-#         else:
-#             painter_log.log(
-#                 painter_log.INFO,
-#                 "shapeshift",
-#                 "Cancel"
-#             )
-
-#     def _create_project(self):
-#         texture_res = CONSTANTS().TEXTURE_RES
-#         self._mesh_file_path = self._get_mesh_file_path()
-#         if self._mesh_file_path:
-#             project_settings = self._get_project_settings(
-#                 self._mesh_file_path,
-#                 texture_res
-#             )
-#             try:
-#                 painter_proj.create(
-#                     self._mesh_file_path,
-#                     # template_file_path=
-#                     settings=project_settings
-#                 )
-#             except (painter_exc.ProjectError, ValueError) as e:
-#                 painter_log.log(
-#                     painter_log.ERROR,
-#                     "shapeshift",
-#                     f"Project Creation Error: {e}"
-#                 )
-#             else:
-#                 self.thread = QThread()
-#                 self.worker = Worker()
-#                 self.worker.moveToThread(self.thread)
-#                 self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
-#                 self.worker.finished.connect(self.thread.quit)
-#                 self.worker.result.connect(self.log_maps)
-#                 self.worker.finished.connect(self.worker.deleteLater)
-#                 self.thread.start()
-#         return None
-
-#     def _bake_maps(self):
-#         self.thread = QThread()
-#         self.worker = Worker()
-#         self.worker.moveToThread(self.thread)
-#         self.thread.started.connect(lambda: self.worker.run(self._mesh_file_path))
-#         self.worker.finished.connect(self.thread.quit)
-#         self.worker.result.connect(self.log_maps)
-#         self.worker.finished.connect(self.worker.deleteLater)
-#         self.thread.finished.connect(self.thread.deleteLater)
-#         self.thread.start()
-#         return None
-
-#     @Slot()
-#     def log_maps(self, d):
-#         painter_log.log(
-#             painter_log.INFO,
-#             "shapeshift",
-#             pprint.saferepr(d)
-#         )
-
-#     def _get_mesh_file_path(self):
-#         mesh_file_path, _ = QFileDialog.getOpenFileName(
-#             self,
-#             "Open Static Mesh",
-#             str(Path.home()),
-#             "Static Mesh Files (*.fbx)"
-#         )
-#         if not mesh_file_path:
-#             painter_log.log(
-#                 painter_log.ERROR,
-#                 "shapeshift",
-#                 "No mesh file selected"
-#             )
-#         return mesh_file_path
-
-#     def _get_project_settings(self, mesh_file_path, texture_res):
-#         texture_dir_path = os.path.dirname(mesh_file_path).replace(
-#             "Meshes",
-#             "Textures"
-#         )
-#         project_settings = painter_proj.Settings(
-#             # default_save_path
-#             default_texture_resolution=texture_res,
-#             export_path=texture_dir_path,
-#             import_cameras=False,
-#             normal_map_format=painter_proj.NormalMapFormat.DirectX,
-#             tangent_space_mode=painter_proj.TangentSpace.PerFragment
-#         )
-#         return project_settings
 
 
 def start_plugin():

@@ -185,10 +185,15 @@ class MeshMap():
             "position",
         )
         tmp_bake_dir = self._get_tmp_bake_dir()
-        painter_log.log(painter_log.INFO, "shapeshift", "Baking Mesh Maps...")
+        painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps...")
         for mesh_map in maps_to_bake:
             painter_log.log(
                 painter_log.DBG_INFO,
+                "shapeshift",
+                f"Baking Map: {mesh_map}"
+            )
+            painter_log.log(
+                painter_log.INFO,
                 "shapeshift",
                 f"Baking Map: {mesh_map}"
             )
