@@ -36,9 +36,6 @@ class MeshMap():
     def get_baked_mesh_maps(self):
         return self._get_baked_mesh_maps()
 
-    def get_baked_mesh_maps_mp(self):
-        return self._get_baked_mesh_maps_mp()
-
     def _get_mesh_file_path(self, path):
         mesh_file_path = ""
         p = Path(path)
@@ -236,82 +233,6 @@ class MeshMap():
             painter_log.DBG_INFO,
             "shapeshift",
             pprint.saferepr(baked_mesh_maps)
-        )
-        return baked_mesh_maps
-
-    def _put_status(self, queue, **kwargs):
-        msg = kwargs
-        queue.put(msg)
-        return None
-
-    def _get_baked_mesh_maps_mp(self, mpq):
-        baked_mesh_maps = {}
-        maps_to_bake = (
-            "normal",
-            "normal-world-space",
-            "ambient-occlusion",
-            "curvature",
-            "position",
-        )
-        tmp_bake_dir = self._get_tmp_bake_dir()
-        painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps...")
-        for mesh_map in maps_to_bake:
-            painter_log.log(
-                painter_log.DBG_INFO,
-                "shapeshift",
-                f"Baking Map: {mesh_map}"
-            )
-            painter_log.log(
-                painter_log.INFO,
-                "shapeshift",
-                f"Baking Map: {mesh_map}"
-            )
-            self._put_status(
-                mpq,
-                status="PENDING",
-                log=f"Baking Map: {mesh_map}"
-            )
-            try:
-                result = self._bake_map(
-                    mesh_map,
-                    tmp_bake_dir,
-                    self._texture_res
-                )
-            except (OSError, ValueError) as e:
-                painter_log.log(
-                    painter_log.ERROR,
-                    "shapeshift",
-                    f"Bake Error, {mesh_map}: {e}"
-                )
-                raise
-            else:
-                # Capture stderr from command-line bake tool.
-                if result["stderr"]:
-                    regex = r"\[ERROR\]\[(.*)\](.*)"
-                    for line in result["stderr"].split("/n"):
-                        match = re.search(regex, line)
-                        if match:
-                            painter_log.log(
-                                painter_log.ERROR,
-                                match[1],  # channel
-                                match[2],  # msg
-                            )
-                else:
-                    mesh_map_file = (
-                        f"{tmp_bake_dir}/"
-                        f"{Path(self._mesh_file_path).stem}.{mesh_map}.tga"
-                    )
-                    baked_mesh_maps[mesh_map] = mesh_map_file
-        painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps Done.")
-        painter_log.log(
-            painter_log.DBG_INFO,
-            "shapeshift",
-            pprint.saferepr(baked_mesh_maps)
-        )
-        self._put_status(
-            mpq,
-            status="COMPLETED",
-            maps=baked_mesh_maps
         )
         return baked_mesh_maps
 

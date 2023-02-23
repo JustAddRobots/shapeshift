@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import multiprocessing
 import pprint
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from PySide2.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPlainTextEdit,
     QPushButton,
     QSpacerItem,
     QToolButton,
@@ -60,7 +60,6 @@ class ShapeshiftDialog(QDialog):
         self.init_UI()
 
     def init_UI(self):
-        # self.app_menu = QMenu(parent=painter_ui.get_main_window())
         self.app_menu = QMenu(parent=self)
         self.app_menu.setTitle("Shapeshift")
         self.create_action = QWidgetAction(self)
@@ -88,6 +87,7 @@ class ShapeshiftDialog(QDialog):
         self.mesh_file_label.setText("Mesh File")
         self.mesh_file_label.setAlignment(Qt.AlignLeft)
         self.mesh_file_line = QLineEdit(parent=self)
+        self.mesh_file_line.setPlaceholderText("Enter Mesh File...")
         self.mesh_file_button = QToolButton(parent=self)
         self.mesh_file_label.setBuddy(self.mesh_file_line)
 
@@ -116,10 +116,16 @@ class ShapeshiftDialog(QDialog):
         self.mesh_map_layout.addWidget(self.texture_res_label)
         self.mesh_map_layout.addWidget(self.texture_res_box)
 
+        self.logbox = QPlainTextEdit(parent=self)
+        self.logbox.setReadOnly(True)
+        self.logbox.setFixedHeight(100)
+        self.logbox.setPlaceholderText("Logs Go Here...")
+
         self.main_layout.addWidget(self.mesh_file_label)
         self.main_layout.addLayout(self.mesh_file_layout)
         self.main_layout.addLayout(self.mesh_map_layout)
         self.main_layout.addSpacerItem(self.button_box_spacer)
+        self.main_layout.addWidget(self.logbox)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
@@ -135,8 +141,7 @@ class ShapeshiftDialog(QDialog):
         )
 
     def on_project_edition_entered(self, ev):
-        # self.bake_maps()
-        self.bake_maps_mp()
+        self.bake_maps()
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
@@ -229,41 +234,10 @@ class ShapeshiftDialog(QDialog):
                     f"Project Creation Error: {e}"
                 )
 
-    def bake_maps_mp(self):
-        dialog_vars = self.get_dialog_vars()
-        if dialog_vars["is_bake_maps_checked"]:
-            mm = baketools.MeshMap(
-                dialog_vars["mesh_file_path"],
-                dialog_vars["texture_res"]
-            )
-            # dict_ = mm.get_baked_mesh_maps()
-            mpq = multiprocessing.Queue()
-            mproc = multiprocessing.Process(
-                target=mm.get_baked_mesh_maps_mp,
-                name="sbsbaker",
-                args=(mpq, ),
-                daemon=True
-            )
-            mproc.start()
-            while True:
-                if not mpq.empty():
-                    msg = mpq.get()
-                    if msg["status"] in ["PENDING"]:
-                        painter_log.log(
-                            painter_log.INFO,
-                            "shapeshift_mp",
-                            msg["log"]
-                        )
-                    elif msg["status"] in ["COMPLETED"]:
-                        d = msg["maps"]
-                        pprint.saferepr(d)
-                        break
-                time.sleep(0.3)
-
     def bake_maps(self):
         dialog_vars = self.get_dialog_vars()
         if dialog_vars["is_bake_maps_checked"]:
-            self.thread = QThread(parent=self)
+            self.thread = QThread(parent=None)
             self.worker = Worker()
             self.worker.moveToThread(self.thread)
             self.thread.started.connect(
@@ -278,6 +252,7 @@ class ShapeshiftDialog(QDialog):
             self.worker.finished.connect(self.worker.deleteLater)
             self.thread.finished.connect(self.thread.deleteLater)
             self.thread.start()
+            self.thread.setPriority(QThread.LowestPriority)
         else:
             self.accept
 
