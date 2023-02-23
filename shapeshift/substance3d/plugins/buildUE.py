@@ -38,17 +38,33 @@ from shapeshift.substance3d.modules import baketools
 plugin_widgets = []
 
 
-class Worker(QObject):
+# class Watcher(QObject, filepath):
+#     updated = Signal()
+#
+#     f = open(filepath, "r")
+#     self.notifier = QSocketNotifier(
+#         f.fileno(),
+#         QSocketNotifier.Write,
+#         parent=None
+#     )
+
+
+class Baker(QObject):
     finished = Signal()
     result = Signal(object)
 
-    def __init__(self):
-        super(Worker, self).__init__()
+    def __init__(self, mesh_file_path, texture_res):
+        super(Baker, self).__init__()
+        self._mm = baketools.MeshMap(mesh_file_path, texture_res)
+        self._bake_log = f"{self._mm.tmp_bake_dir}/log.txt"
+
+    @property
+    def bake_log(self):
+        return self._bake_log
 
     @Slot()
-    def run(self, mesh_file_path, texture_res):
-        mm = baketools.MeshMap(mesh_file_path, texture_res)
-        dict_ = mm.get_baked_mesh_maps()
+    def run(self):
+        dict_ = self._mm.get_baked_mesh_maps()
         self.result.emit(dict_)
         self.finished.emit()
 
@@ -163,6 +179,9 @@ class ShapeshiftDialog(QDialog):
         )
         self.enable_buttons(mesh_file_path)
 
+#     def on_watcher_update(self):
+#         self.
+
     def on_bake_checkbox_changed(self):
         if self.bake_checkbox.isChecked():
             self.texture_res_box.setEnabled(True)
@@ -237,22 +256,33 @@ class ShapeshiftDialog(QDialog):
     def bake_maps(self):
         dialog_vars = self.get_dialog_vars()
         if dialog_vars["is_bake_maps_checked"]:
-            self.thread = QThread(parent=None)
-            self.worker = Worker()
-            self.worker.moveToThread(self.thread)
-            self.thread.started.connect(
-                lambda: self.worker.run(
-                    dialog_vars["mesh_file_path"],
-                    dialog_vars["texture_res"]
-                )
+            self.baker_thread = QThread(parent=None)
+            self.baker = Baker(
+                dialog_vars["mesh_file_path"],
+                dialog_vars["texture_res"]
             )
-            self.worker.result.connect(self.import_maps)
-            self.worker.finished.connect(self.thread.quit)
-            self.thread.finished.connect(self.accept)
-            self.worker.finished.connect(self.worker.deleteLater)
-            self.thread.finished.connect(self.thread.deleteLater)
-            self.thread.start()
-            self.thread.setPriority(QThread.LowestPriority)
+            self.baker.moveToThread(self.baker_thread)
+
+            # self.watcher_thread = QThread(parent=None)
+            # self.watcher = Watcher(self.baker.bake_log)
+            # self.watcher.moveToThread(self.watcher_thread)
+
+            self.baker_thread.started.connect(self.baker.run)
+            # self.baker_thread.started.connect(self.watcher.run)
+
+            # self.watcher.activated.connect(self.on_watcher_update)
+
+            self.baker.result.connect(self.import_maps)
+            self.baker.finished.connect(self.baker_thread.quit)
+            # self.baker.finished.connect(self.watcher_thread.quit)
+            self.baker_thread.finished.connect(self.accept)
+            self.baker.finished.connect(self.baker.deleteLater)
+            # self.baker.finished.connect(self.watcher.deleteLater)
+            self.baker_thread.finished.connect(self.baker_thread.deleteLater)
+
+            # self.watcher_thread.start()
+            self.baker_thread.start()
+            self.baker_thread.setPriority(QThread.LowestPriority)
         else:
             self.accept
 
