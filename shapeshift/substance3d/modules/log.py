@@ -44,6 +44,7 @@ def get_std_logger_conf():
 def get_std_logger(log_dir):
     logger_conf = get_std_logger_conf()
     logger_conf["handlers"]["noformat"]["filename"] = f"{log_dir}/log.txt"
+    logger_conf["handlers"]["file"]["filename"] = f"{log_dir}/log_tmp.txt"
     logging.config.dictConfig(logger_conf)
     lgr = logging.getLogger("noformat")
     lgr.setLevel(logging.DEBUG)

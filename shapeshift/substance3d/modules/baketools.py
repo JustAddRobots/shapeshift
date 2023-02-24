@@ -17,12 +17,15 @@ from shapeshift.substance3d.modules import log
 
 class MeshMap():
 
-    def __init__(self, mesh_file_path, texture_res):
+    def __init__(self, mesh_file_path, texture_res, **kwargs):
         self._mesh_file_path = self._get_mesh_file_path(mesh_file_path)
         self._texture_res = self._get_texture_res(texture_res)
         self._sbsbaker_path = self._get_sbsbaker_path()
         self._tmp_bake_dir = self._get_tmp_bake_dir()
-        self._logger = log.get_std_logger(self._tmp_bake_dir)
+        self._logger = kwargs.setdefault(
+            "logger",
+            log.get_std_logger(self._tmp_bake_dir)
+        )
 
     @property
     def mesh_file_path(self):

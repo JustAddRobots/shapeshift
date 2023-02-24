@@ -49,13 +49,40 @@ plugin_widgets = []
 #     )
 
 
+class QPlainTextEditLogger(QObject):
+    append = Signal(str)
+
+    def __init__(self, parent):
+        super().__init__()
+        # QObject.__init__(self)
+        self.textedit = QPlainTextEdit(parent)
+        self.textedit.setReadOnly(true)
+        self.textedit.setFixedHeight(100)
+        self.append.connect(self.textedit.appendPlainText)
+
+
+class QLogHandler(logging.Handler):
+
+    def __init__(self, emitter):
+        super().__init__()
+        self._emitter = emitter
+
+    @property
+    def emitter(self):
+        return self._emitter
+
+    def emit(self, record):
+        msg = self.format(record)
+        self.emmiter.append.emit(msg)
+
+
 class Baker(QObject):
     finished = Signal()
     result = Signal(object)
 
-    def __init__(self, mesh_file_path, texture_res):
+    def __init__(self, mesh_file_path, texture_res, **kwargs):
         super(Baker, self).__init__()
-        self._mm = baketools.MeshMap(mesh_file_path, texture_res)
+        self._mm = baketools.MeshMap(mesh_file_path, texture_res, **kwargs)
         self._bake_log = f"{self._mm.tmp_bake_dir}/log.txt"
 
     @property
@@ -103,7 +130,6 @@ class ShapeshiftDialog(QDialog):
         self.mesh_file_label.setText("Mesh File")
         self.mesh_file_label.setAlignment(Qt.AlignLeft)
         self.mesh_file_line = QLineEdit(parent=self)
-        self.mesh_file_line.setPlaceholderText("Enter Mesh File...")
         self.mesh_file_button = QToolButton(parent=self)
         self.mesh_file_label.setBuddy(self.mesh_file_line)
 
@@ -132,10 +158,7 @@ class ShapeshiftDialog(QDialog):
         self.mesh_map_layout.addWidget(self.texture_res_label)
         self.mesh_map_layout.addWidget(self.texture_res_box)
 
-        self.logbox = QPlainTextEdit(parent=self)
-        self.logbox.setReadOnly(True)
-        self.logbox.setFixedHeight(100)
-        self.logbox.setPlaceholderText("Logs Go Here...")
+        self.logbox = QPlainTextEditlogger(self)
 
         self.main_layout.addWidget(self.mesh_file_label)
         self.main_layout.addLayout(self.mesh_file_layout)
@@ -256,10 +279,15 @@ class ShapeshiftDialog(QDialog):
     def bake_maps(self):
         dialog_vars = self.get_dialog_vars()
         if dialog_vars["is_bake_maps_checked"]:
+            logger = logging.getLogger()
+            logger.addHandler(QlogHandler(self.logbox))
+            logger.setLevel(logging.DEBUG)
+
             self.baker_thread = QThread(parent=None)
             self.baker = Baker(
                 dialog_vars["mesh_file_path"],
-                dialog_vars["texture_res"]
+                dialog_vars["texture_res"],
+                logger=logger
             )
             self.baker.moveToThread(self.baker_thread)
 
