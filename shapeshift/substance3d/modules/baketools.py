@@ -196,7 +196,9 @@ class MeshMap():
         )
         painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps...")
         self._logger.info("Bake Mesh Maps...")
+        self._logger.info("Test Outside")
         for mesh_map in maps_to_bake:
+            self._logger.info("Test Inside")
             painter_log.log(
                 painter_log.DBG_INFO,
                 "shapeshift",
