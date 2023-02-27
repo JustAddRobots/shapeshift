@@ -22,10 +22,10 @@ class MeshMap():
         self._texture_res = self._get_texture_res(texture_res)
         self._sbsbaker_path = self._get_sbsbaker_path()
         self._tmp_bake_dir = self._get_tmp_bake_dir()
-        self._logger = kwargs.setdefault(
-            "logger",
-            log.get_std_logger(self._tmp_bake_dir)
-        )
+        self._extra_handler = kwargs.setdefault("extra_handler", None)
+        self._logger = log.get_std_logger(self._tmp_bake_dir)
+        if self._extra_handler:
+            self._logger.addHandler(self._extra_handler)
 
     @property
     def mesh_file_path(self):

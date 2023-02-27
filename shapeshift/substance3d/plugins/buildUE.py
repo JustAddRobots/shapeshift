@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import pprint
 from pathlib import Path
 
@@ -55,10 +56,10 @@ class QPlainTextEditLogger(QObject):
     def __init__(self, parent):
         super().__init__()
         # QObject.__init__(self)
-        self.textedit = QPlainTextEdit(parent)
-        self.textedit.setReadOnly(true)
-        self.textedit.setFixedHeight(100)
-        self.append.connect(self.textedit.appendPlainText)
+        self.widget = QPlainTextEdit(parent)
+        self.widget.setReadOnly(True)
+        self.widget.setFixedHeight(100)
+        self.append.connect(self.widget.appendPlainText)
 
 
 class QLogHandler(logging.Handler):
@@ -82,7 +83,12 @@ class Baker(QObject):
 
     def __init__(self, mesh_file_path, texture_res, **kwargs):
         super(Baker, self).__init__()
-        self._mm = baketools.MeshMap(mesh_file_path, texture_res, **kwargs)
+        self._extra_handler = kwargs.setdefault("extra_handler", None)
+        self._mm = baketools.MeshMap(
+            mesh_file_path,
+            texture_res,
+            extra_handler=self._extra_handler
+        )
         self._bake_log = f"{self._mm.tmp_bake_dir}/log.txt"
 
     @property
@@ -158,13 +164,13 @@ class ShapeshiftDialog(QDialog):
         self.mesh_map_layout.addWidget(self.texture_res_label)
         self.mesh_map_layout.addWidget(self.texture_res_box)
 
-        self.logbox = QPlainTextEditlogger(self)
+        self.logbox = QPlainTextEditLogger(self)
 
         self.main_layout.addWidget(self.mesh_file_label)
         self.main_layout.addLayout(self.mesh_file_layout)
         self.main_layout.addLayout(self.mesh_map_layout)
         self.main_layout.addSpacerItem(self.button_box_spacer)
-        self.main_layout.addWidget(self.logbox)
+        self.main_layout.addWidget(self.logbox.widget)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
@@ -279,15 +285,12 @@ class ShapeshiftDialog(QDialog):
     def bake_maps(self):
         dialog_vars = self.get_dialog_vars()
         if dialog_vars["is_bake_maps_checked"]:
-            logger = logging.getLogger()
-            logger.addHandler(QlogHandler(self.logbox))
-            logger.setLevel(logging.DEBUG)
-
+            logbox_handler = QLogHandler(self.logbox)
             self.baker_thread = QThread(parent=None)
             self.baker = Baker(
                 dialog_vars["mesh_file_path"],
                 dialog_vars["texture_res"],
-                logger=logger
+                extra_handler=logbox_handler
             )
             self.baker.moveToThread(self.baker_thread)
 
