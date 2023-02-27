@@ -74,7 +74,7 @@ class QLogHandler(logging.Handler):
 
     def emit(self, record):
         msg = self.format(record)
-        self.emmiter.append.emit(msg)
+        self.emitter.append.emit(msg)
 
 
 class Baker(QObject):
