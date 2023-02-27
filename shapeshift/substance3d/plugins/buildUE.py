@@ -86,7 +86,7 @@ class Baker(QObject):
         self._extra_handler = kwargs.setdefault("extra_handler", None)
         logger = logging.getLogger()
         logger.addHandler(self._extra_handler)
-        logger.setlevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
         logger.info("TEST")
         self._mm = baketools.MeshMap(
             mesh_file_path,
