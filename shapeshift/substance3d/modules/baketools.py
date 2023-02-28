@@ -194,16 +194,10 @@ class MeshMap():
             "curvature",
             "position",
         )
-        painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps...")
         self._logger.info("Bake Mesh Maps...")
         for mesh_map in maps_to_bake:
             painter_log.log(
                 painter_log.DBG_INFO,
-                "shapeshift",
-                f"Baking Map: {mesh_map}"
-            )
-            painter_log.log(
-                painter_log.INFO,
                 "shapeshift",
                 f"Baking Map: {mesh_map}"
             )
@@ -240,7 +234,6 @@ class MeshMap():
                         f"{Path(self._mesh_file_path).stem}.{mesh_map}.tga"
                     )
                     baked_mesh_maps[mesh_map] = mesh_map_file
-        painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps Done.")
         self._logger.info("Bake Mesh Maps Done.")
         painter_log.log(
             painter_log.DBG_INFO,

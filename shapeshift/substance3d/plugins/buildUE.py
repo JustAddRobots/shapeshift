@@ -2,6 +2,7 @@
 
 import logging
 import pprint
+import time
 from pathlib import Path
 
 from PySide2.QtWidgets import (
@@ -177,11 +178,12 @@ class ShapeshiftDialog(QDialog):
         self.logbox_handler = QLogHandler(self.logbox)
         self.logger = logging.getLogger()
         self.logger.addHandler(self.logbox_handler)
+        self.logger.setLevel(logging.DEBUG)
 
         self.main_layout.addWidget(self.mesh_file_label)
         self.main_layout.addLayout(self.mesh_file_layout)
         self.main_layout.addLayout(self.mesh_map_layout)
-        self.main_layout.addSpacerItem(self.button_box_spacer)
+        # self.main_layout.addSpacerItem(self.button_box_spacer)
         self.main_layout.addWidget(self.logbox_label)
         self.main_layout.addWidget(self.logbox.widget)
         self.main_layout.addWidget(self.button_box)
@@ -242,8 +244,8 @@ class ShapeshiftDialog(QDialog):
 
     @Slot()
     def on_dialog_ready_for_accept(self):
-        time.sleep(1)
-        self.accept
+        time.sleep(2)
+        self.accept()
 
     @Slot()
     def on_dialog_accepted(self):
