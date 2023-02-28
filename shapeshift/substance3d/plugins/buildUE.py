@@ -59,6 +59,7 @@ class QPlainTextEditLogger(QObject):
         self.widget = QPlainTextEdit(parent)
         self.widget.setReadOnly(True)
         self.widget.setFixedHeight(100)
+        self.widget.setBackgroundVisible(False)
         self.append.connect(self.widget.appendPlainText)
 
 
@@ -137,7 +138,9 @@ class ShapeshiftDialog(QDialog):
         self.mesh_file_label.setAlignment(Qt.AlignLeft)
         self.mesh_file_line = QLineEdit(parent=self)
         self.mesh_file_button = QToolButton(parent=self)
+        self.mesh_file_button.setIcon(QIcon("SP_DialogOpenButton"))
         self.mesh_file_label.setBuddy(self.mesh_file_line)
+        self.mesh_file_start_path = str(Path.home())
 
         self.mesh_file_layout.addWidget(self.mesh_file_line)
         self.mesh_file_layout.addWidget(self.mesh_file_button)
@@ -185,6 +188,9 @@ class ShapeshiftDialog(QDialog):
             self.on_project_edition_entered
         )
 
+        self.accepted.connect(self.on_dialog_accepted)
+
+    @Slot()
     def on_project_edition_entered(self, ev):
         self.bake_maps()
 
@@ -196,26 +202,32 @@ class ShapeshiftDialog(QDialog):
             self.create_button.setDefault(True)
             self.cancel_button.setDefault(False)
 
+    @Slot()
     def on_mesh_file_line_edited(self):
         self.enable_buttons(self.mesh_file_line.text())
 
+    @Slot()
     def on_mesh_file_button_clicked(self):
         mesh_file_path, _ = QFileDialog.getOpenFileName(
             parent=self,
             caption="Open Static Mesh",
-            dir=str(Path.home()),
+            dir=self.mesh_file_start_path,
             filter="Static Mesh Files (*.fbx)"
         )
         self.enable_buttons(mesh_file_path)
 
-#     def on_watcher_update(self):
-#         self.
-
+    @Slot()
     def on_bake_checkbox_changed(self):
         if self.bake_checkbox.isChecked():
             self.texture_res_box.setEnabled(True)
         else:
             self.texture_res_box.setEnabled(False)
+
+    @Slot()
+    def on_dialog_accepted(self):
+        self.logbox.clear()
+        p = Path(self.mesh_file_line.text())
+        self.mesh_file_start_path = p.parent
 
     def get_dialog_vars(self):
         dialog_vars = {}
