@@ -28,6 +28,7 @@ from PySide2.QtCore import (
     Signal,
     Slot,
 )
+from Pyside2.QtGui import QIcon
 
 import substance_painter.event as painter_ev
 import substance_painter.exception as painter_exc
