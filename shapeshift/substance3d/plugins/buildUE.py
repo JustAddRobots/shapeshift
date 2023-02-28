@@ -184,12 +184,19 @@ class ShapeshiftDialog(QDialog):
         self.mesh_file_line.editingFinished.connect(self.on_mesh_file_line_edited)
         self.bake_checkbox.stateChanged.connect(self.on_bake_checkbox_changed)
 
+        self.dialog_vars = {}
+
         painter_ev.DISPATCHER.connect(
             painter_ev.ProjectEditionEntered,
             self.on_project_edition_entered
         )
 
         self.accepted.connect(self.on_dialog_accepted)
+
+    @Slot()
+    def on_create_button_clicked(self):
+        self.set_dialog_vars()
+        self.create_project()
 
     @Slot()
     def on_project_edition_entered(self, ev):
@@ -230,14 +237,13 @@ class ShapeshiftDialog(QDialog):
         p = Path(self.mesh_file_line.text())
         self.mesh_file_start_path = str(p.parent)
 
-    def get_dialog_vars(self):
-        dialog_vars = {}
-        dialog_vars["mesh_file_path"] = self.mesh_file_line.text()
+    def set_dialog_vars(self):
+        self.dialog_vars["mesh_file_path"] = self.mesh_file_line.text()
 
         if self.bake_checkbox.checkState() == Qt.CheckState.Checked:
-            dialog_vars["is_bake_maps_checked"] = True
+            self.dialog_vars["is_bake_maps_checked"] = True
         elif self.bake_checkbox.checkState() == Qt.CheckState.Unchecked:
-            dialog_vars["is_bake_maps_checked"] = False
+            self.dialog_vars["is_bake_maps_checked"] = False
 
         try:
             texture_res = int(self.texture_res_box.currentText())
@@ -248,10 +254,13 @@ class ShapeshiftDialog(QDialog):
                 f"Texture Resolution Error: {e}"
             )
         else:
-            dialog_vars["texture_res"] = texture_res
+            self.dialog_vars["texture_res"] = texture_res
 
-        painter_log.log(painter_log.DBG_INFO, "shapeshift", pprint.saferepr(dialog_vars))
-        return dialog_vars
+        painter_log.log(
+            painter_log.DBG_INFO,
+            "shapeshift",
+            pprint.saferepr(self.dialog_vars)
+        )
 
     def get_project_settings(self, mesh_file_path, texture_res):
         texture_dir_path = str(Path(mesh_file_path).parent).replace(
@@ -270,7 +279,7 @@ class ShapeshiftDialog(QDialog):
 
     @Slot()
     def create_project(self):
-        dialog_vars = self.get_dialog_vars()
+        # self.dialog_vars = self.get_dialog_vars()
         project_settings = self.get_project_settings(
             dialog_vars["mesh_file_path"],
             dialog_vars["texture_res"]
@@ -296,7 +305,7 @@ class ShapeshiftDialog(QDialog):
                 )
 
     def bake_maps(self):
-        dialog_vars = self.get_dialog_vars()
+        # dialog_vars = self.get_dialog_vars()
         if dialog_vars["is_bake_maps_checked"]:
             logbox_handler = QLogHandler(self.logbox)
             self.baker_thread = QThread(parent=None)
