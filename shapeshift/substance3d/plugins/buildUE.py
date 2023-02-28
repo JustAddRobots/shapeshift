@@ -172,7 +172,7 @@ class ShapeshiftDialog(QDialog):
         self.logbox = QPlainTextEditLogger(self)
         self.logbox_label = QLabel(parent=self)
         self.logbox_label.setText("Logs")
-        self.logbox_label.setBuddy(self.logbox)
+        self.logbox_label.setBuddy(self.logbox.widget)
 
         self.logbox_handler = QLogHandler(self.logbox)
         self.logger = logging.getLogger()
