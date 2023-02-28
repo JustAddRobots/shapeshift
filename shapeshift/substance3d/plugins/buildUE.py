@@ -281,8 +281,8 @@ class ShapeshiftDialog(QDialog):
     def create_project(self):
         # self.dialog_vars = self.get_dialog_vars()
         project_settings = self.get_project_settings(
-            dialog_vars["mesh_file_path"],
-            dialog_vars["texture_res"]
+            self.dialog_vars["mesh_file_path"],
+            self.dialog_vars["texture_res"]
         )
         if painter_proj.is_open():
             painter_log.log(
@@ -293,7 +293,7 @@ class ShapeshiftDialog(QDialog):
         else:
             try:
                 painter_proj.create(
-                    dialog_vars["mesh_file_path"],
+                    self.dialog_vars["mesh_file_path"],
                     # template_file_path=
                     settings=project_settings
                 )
@@ -306,12 +306,12 @@ class ShapeshiftDialog(QDialog):
 
     def bake_maps(self):
         # dialog_vars = self.get_dialog_vars()
-        if dialog_vars["is_bake_maps_checked"]:
+        if self.dialog_vars["is_bake_maps_checked"]:
             logbox_handler = QLogHandler(self.logbox)
             self.baker_thread = QThread(parent=None)
             self.baker = Baker(
-                dialog_vars["mesh_file_path"],
-                dialog_vars["texture_res"],
+                self.dialog_vars["mesh_file_path"],
+                self.dialog_vars["texture_res"],
                 extra_handler=logbox_handler
             )
             self.baker.moveToThread(self.baker_thread)
