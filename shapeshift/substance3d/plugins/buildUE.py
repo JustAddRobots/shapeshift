@@ -228,7 +228,7 @@ class ShapeshiftDialog(QDialog):
     def on_dialog_accepted(self):
         self.logbox.widget.clear()
         p = Path(self.mesh_file_line.text())
-        self.mesh_file_start_path = p.parent
+        self.mesh_file_start_path = str(p.parent)
 
     def get_dialog_vars(self):
         dialog_vars = {}
