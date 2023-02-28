@@ -178,7 +178,7 @@ class ShapeshiftDialog(QDialog):
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
-        self.button_box.accepted.connect(self.create_project)
+        self.button_box.accepted.connect(self.on_create_button_clicked)
         self.button_box.rejected.connect(self.reject)
         self.mesh_file_button.clicked.connect(self.on_mesh_file_button_clicked)
         self.mesh_file_line.editingFinished.connect(self.on_mesh_file_line_edited)
