@@ -28,7 +28,7 @@ from PySide2.QtCore import (
     Signal,
     Slot,
 )
-from PySide2.QtGui import QIcon
+# from PySide2.QtGui import QIcon
 
 import substance_painter.event as painter_ev
 import substance_painter.exception as painter_exc
@@ -139,7 +139,7 @@ class ShapeshiftDialog(QDialog):
         self.mesh_file_label.setAlignment(Qt.AlignLeft)
         self.mesh_file_line = QLineEdit(parent=self)
         self.mesh_file_button = QToolButton(parent=self)
-        self.mesh_file_button.setIcon(QIcon("SP_DialogOpenButton"))
+        # self.mesh_file_button.setIcon(QIcon("SP_DialogOpenButton"))
         self.mesh_file_label.setBuddy(self.mesh_file_line)
         self.mesh_file_start_path = str(Path.home())
 
