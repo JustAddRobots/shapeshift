@@ -12,14 +12,20 @@ from pathlib import Path
 import substance_painter.logging as painter_log
 
 from shapeshift.common import command
+from shapeshift.substance3d.modules import log
 
 
 class MeshMap():
 
-    def __init__(self, mesh_file_path, texture_res):
+    def __init__(self, mesh_file_path, texture_res, **kwargs):
         self._mesh_file_path = self._get_mesh_file_path(mesh_file_path)
         self._texture_res = self._get_texture_res(texture_res)
         self._sbsbaker_path = self._get_sbsbaker_path()
+        self._tmp_bake_dir = self._get_tmp_bake_dir()
+        self._extra_handler = kwargs.setdefault("extra_handler", None)
+        self._logger = log.get_std_logger(self._tmp_bake_dir)
+        if self._extra_handler:
+            self._logger.addHandler(self._extra_handler)
 
     @property
     def mesh_file_path(self):
@@ -28,6 +34,10 @@ class MeshMap():
     @property
     def texture_res(self):
         return self._texture_res
+
+    @property
+    def tmp_bake_dir(self):
+        return self._tmp_bake_dir
 
     @property
     def baked_mesh_maps(self):
@@ -157,7 +167,7 @@ class MeshMap():
         size = int(math.log2(texture_res))
         cmd = [
             f"--inputs {self._mesh_file_path}",
-            f"--output-path {tmp_bake_dir}",
+            f"--output-path {self._tmp_bake_dir}",
             f"--output-name {{inputName}}.{mesh_map}",
             "--output-format tga",
             f"--output-size {size},{size}",
@@ -184,23 +194,18 @@ class MeshMap():
             "curvature",
             "position",
         )
-        tmp_bake_dir = self._get_tmp_bake_dir()
-        painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps...")
+        self._logger.info("Bake Mesh Maps...")
         for mesh_map in maps_to_bake:
             painter_log.log(
                 painter_log.DBG_INFO,
                 "shapeshift",
                 f"Baking Map: {mesh_map}"
             )
-            painter_log.log(
-                painter_log.INFO,
-                "shapeshift",
-                f"Baking Map: {mesh_map}"
-            )
+            self._logger.info(f"Baking Map: {mesh_map}")
             try:
                 result = self._bake_map(
                     mesh_map,
-                    tmp_bake_dir,
+                    self._tmp_bake_dir,
                     self._texture_res
                 )
             except (OSError, ValueError) as e:
@@ -209,6 +214,7 @@ class MeshMap():
                     "shapeshift",
                     f"Bake Error, {mesh_map}: {e}"
                 )
+                self._logger.info(f"Bake Error, {mesh_map}: {e}")
                 raise
             else:
                 # Capture stderr from command-line bake tool.
@@ -224,11 +230,11 @@ class MeshMap():
                             )
                 else:
                     mesh_map_file = (
-                        f"{tmp_bake_dir}/"
+                        f"{self._tmp_bake_dir}/"
                         f"{Path(self._mesh_file_path).stem}.{mesh_map}.tga"
                     )
                     baked_mesh_maps[mesh_map] = mesh_map_file
-        painter_log.log(painter_log.INFO, "shapeshift", "Bake Mesh Maps Done.")
+        self._logger.info("Bake Mesh Maps Done.")
         painter_log.log(
             painter_log.DBG_INFO,
             "shapeshift",

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import logging
 import pprint
+import time
 from pathlib import Path
 
 from PySide2.QtWidgets import (
@@ -13,6 +15,7 @@ from PySide2.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QPlainTextEdit,
     QPushButton,
     QSpacerItem,
     QToolButton,
@@ -26,6 +29,7 @@ from PySide2.QtCore import (
     Signal,
     Slot,
 )
+# from PySide2.QtGui import QIcon
 
 import substance_painter.event as painter_ev
 import substance_painter.exception as painter_exc
@@ -37,17 +41,66 @@ from shapeshift.substance3d.modules import baketools
 plugin_widgets = []
 
 
-class Worker(QObject):
+# class Watcher(QObject, filepath):
+#     updated = Signal()
+#
+#     f = open(filepath, "r")
+#     self.notifier = QSocketNotifier(
+#         f.fileno(),
+#         QSocketNotifier.Write,
+#         parent=None
+#     )
+
+
+class QPlainTextEditLogger(QObject):
+    append = Signal(str)
+
+    def __init__(self, parent):
+        super().__init__()
+        # QObject.__init__(self)
+        self.widget = QPlainTextEdit(parent)
+        self.widget.setReadOnly(True)
+        self.widget.setFixedHeight(100)
+        self.widget.setBackgroundVisible(False)
+        self.append.connect(self.widget.appendPlainText)
+
+
+class QLogHandler(logging.Handler):
+
+    def __init__(self, emitter):
+        super().__init__()
+        self._emitter = emitter
+
+    @property
+    def emitter(self):
+        return self._emitter
+
+    def emit(self, record):
+        msg = self.format(record)
+        self.emitter.append.emit(msg)
+
+
+class Baker(QObject):
     finished = Signal()
     result = Signal(object)
 
-    def __init__(self):
-        super(Worker, self).__init__()
+    def __init__(self, mesh_file_path, texture_res, **kwargs):
+        super(Baker, self).__init__()
+        self._extra_handler = kwargs.setdefault("extra_handler", None)
+        self._mm = baketools.MeshMap(
+            mesh_file_path,
+            texture_res,
+            extra_handler=self._extra_handler
+        )
+        self._bake_log = f"{self._mm.tmp_bake_dir}/log.txt"
+
+    @property
+    def bake_log(self):
+        return self._bake_log
 
     @Slot()
-    def run(self, mesh_file_path, texture_res):
-        mm = baketools.MeshMap(mesh_file_path, texture_res)
-        dict_ = mm.get_baked_mesh_maps()
+    def run(self):
+        dict_ = self._mm.get_baked_mesh_maps()
         self.result.emit(dict_)
         self.finished.emit()
 
@@ -59,7 +112,6 @@ class ShapeshiftDialog(QDialog):
         self.init_UI()
 
     def init_UI(self):
-        # self.app_menu = QMenu(parent=painter_ui.get_main_window())
         self.app_menu = QMenu(parent=self)
         self.app_menu.setTitle("Shapeshift")
         self.create_action = QWidgetAction(self)
@@ -88,7 +140,9 @@ class ShapeshiftDialog(QDialog):
         self.mesh_file_label.setAlignment(Qt.AlignLeft)
         self.mesh_file_line = QLineEdit(parent=self)
         self.mesh_file_button = QToolButton(parent=self)
+        # self.mesh_file_button.setIcon(QIcon("SP_DialogOpenButton"))
         self.mesh_file_label.setBuddy(self.mesh_file_line)
+        self.mesh_file_start_path = str(Path.home())
 
         self.mesh_file_layout.addWidget(self.mesh_file_line)
         self.mesh_file_layout.addWidget(self.mesh_file_button)
@@ -103,7 +157,8 @@ class ShapeshiftDialog(QDialog):
             "512",
             "1024",
             "2048",
-            "4096"
+            "4096",
+            "8192",
         ])
         self.texture_res_box.setCurrentIndex(3)
         self.texture_res_label = QLabel(parent=self)
@@ -115,24 +170,46 @@ class ShapeshiftDialog(QDialog):
         self.mesh_map_layout.addWidget(self.texture_res_label)
         self.mesh_map_layout.addWidget(self.texture_res_box)
 
+        self.logbox = QPlainTextEditLogger(self)
+        self.logbox_label = QLabel(parent=self)
+        self.logbox_label.setText("Logs")
+        self.logbox_label.setBuddy(self.logbox.widget)
+
+        self.logbox_handler = QLogHandler(self.logbox)
+        self.logger = logging.getLogger()
+        self.logger.addHandler(self.logbox_handler)
+        self.logger.setLevel(logging.DEBUG)
+
         self.main_layout.addWidget(self.mesh_file_label)
         self.main_layout.addLayout(self.mesh_file_layout)
         self.main_layout.addLayout(self.mesh_map_layout)
-        self.main_layout.addSpacerItem(self.button_box_spacer)
+        # self.main_layout.addSpacerItem(self.button_box_spacer)
+        self.main_layout.addWidget(self.logbox_label)
+        self.main_layout.addWidget(self.logbox.widget)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
-        self.button_box.accepted.connect(self.create_project)
+        self.button_box.accepted.connect(self.on_create_button_clicked)
         self.button_box.rejected.connect(self.reject)
         self.mesh_file_button.clicked.connect(self.on_mesh_file_button_clicked)
         self.mesh_file_line.editingFinished.connect(self.on_mesh_file_line_edited)
         self.bake_checkbox.stateChanged.connect(self.on_bake_checkbox_changed)
+
+        self.dialog_vars = {}
 
         painter_ev.DISPATCHER.connect(
             painter_ev.ProjectEditionEntered,
             self.on_project_edition_entered
         )
 
+        self.accepted.connect(self.on_dialog_accepted)
+
+    @Slot()
+    def on_create_button_clicked(self):
+        self.set_dialog_vars()
+        self.create_project()
+
+    @Slot()
     def on_project_edition_entered(self, ev):
         self.bake_maps()
 
@@ -144,32 +221,45 @@ class ShapeshiftDialog(QDialog):
             self.create_button.setDefault(True)
             self.cancel_button.setDefault(False)
 
+    @Slot()
     def on_mesh_file_line_edited(self):
         self.enable_buttons(self.mesh_file_line.text())
 
+    @Slot()
     def on_mesh_file_button_clicked(self):
         mesh_file_path, _ = QFileDialog.getOpenFileName(
             parent=self,
             caption="Open Static Mesh",
-            dir=str(Path.home()),
+            dir=self.mesh_file_start_path,
             filter="Static Mesh Files (*.fbx)"
         )
         self.enable_buttons(mesh_file_path)
 
+    @Slot()
     def on_bake_checkbox_changed(self):
         if self.bake_checkbox.isChecked():
             self.texture_res_box.setEnabled(True)
         else:
             self.texture_res_box.setEnabled(False)
 
-    def get_dialog_vars(self):
-        dialog_vars = {}
-        dialog_vars["mesh_file_path"] = self.mesh_file_line.text()
+    @Slot()
+    def on_dialog_ready_for_accept(self):
+        time.sleep(2)
+        self.accept()
+
+    @Slot()
+    def on_dialog_accepted(self):
+        self.logbox.widget.clear()
+        p = Path(self.mesh_file_line.text())
+        self.mesh_file_start_path = str(p.parent)
+
+    def set_dialog_vars(self):
+        self.dialog_vars["mesh_file_path"] = self.mesh_file_line.text()
 
         if self.bake_checkbox.checkState() == Qt.CheckState.Checked:
-            dialog_vars["is_bake_maps_checked"] = True
+            self.dialog_vars["is_bake_maps_checked"] = True
         elif self.bake_checkbox.checkState() == Qt.CheckState.Unchecked:
-            dialog_vars["is_bake_maps_checked"] = False
+            self.dialog_vars["is_bake_maps_checked"] = False
 
         try:
             texture_res = int(self.texture_res_box.currentText())
@@ -180,10 +270,13 @@ class ShapeshiftDialog(QDialog):
                 f"Texture Resolution Error: {e}"
             )
         else:
-            dialog_vars["texture_res"] = texture_res
+            self.dialog_vars["texture_res"] = texture_res
 
-        painter_log.log(painter_log.DBG_INFO, "shapeshift", pprint.saferepr(dialog_vars))
-        return dialog_vars
+        painter_log.log(
+            painter_log.DBG_INFO,
+            "shapeshift",
+            pprint.saferepr(self.dialog_vars)
+        )
 
     def get_project_settings(self, mesh_file_path, texture_res):
         texture_dir_path = str(Path(mesh_file_path).parent).replace(
@@ -202,10 +295,10 @@ class ShapeshiftDialog(QDialog):
 
     @Slot()
     def create_project(self):
-        dialog_vars = self.get_dialog_vars()
+        # self.dialog_vars = self.get_dialog_vars()
         project_settings = self.get_project_settings(
-            dialog_vars["mesh_file_path"],
-            dialog_vars["texture_res"]
+            self.dialog_vars["mesh_file_path"],
+            self.dialog_vars["texture_res"]
         )
         if painter_proj.is_open():
             painter_log.log(
@@ -215,8 +308,9 @@ class ShapeshiftDialog(QDialog):
             )
         else:
             try:
+                self.logger.info("Create Project...")
                 painter_proj.create(
-                    dialog_vars["mesh_file_path"],
+                    self.dialog_vars["mesh_file_path"],
                     # template_file_path=
                     settings=project_settings
                 )
@@ -226,27 +320,44 @@ class ShapeshiftDialog(QDialog):
                     "shapeshift",
                     f"Project Creation Error: {e}"
                 )
+            else:
+                self.logger.info("Create Project Done.")
 
     def bake_maps(self):
-        dialog_vars = self.get_dialog_vars()
-        if dialog_vars["is_bake_maps_checked"]:
-            self.thread = QThread(parent=self)
-            self.worker = Worker()
-            self.worker.moveToThread(self.thread)
-            self.thread.started.connect(
-                lambda: self.worker.run(
-                    dialog_vars["mesh_file_path"],
-                    dialog_vars["texture_res"]
-                )
+        # dialog_vars = self.get_dialog_vars()
+        if self.dialog_vars["is_bake_maps_checked"]:
+            # logbox_handler = QLogHandler(self.logbox)
+            self.logbox_handler = QLogHandler(self.logbox)
+            self.baker_thread = QThread(parent=None)
+            self.baker = Baker(
+                self.dialog_vars["mesh_file_path"],
+                self.dialog_vars["texture_res"],
+                extra_handler=self.logbox_handler
             )
-            self.worker.result.connect(self.import_maps)
-            self.worker.finished.connect(self.thread.quit)
-            self.thread.finished.connect(self.accept)
-            self.worker.finished.connect(self.worker.deleteLater)
-            self.thread.finished.connect(self.thread.deleteLater)
-            self.thread.start()
+            self.baker.moveToThread(self.baker_thread)
+
+            # self.watcher_thread = QThread(parent=None)
+            # self.watcher = Watcher(self.baker.bake_log)
+            # self.watcher.moveToThread(self.watcher_thread)
+
+            self.baker_thread.started.connect(self.baker.run)
+            # self.baker_thread.started.connect(self.watcher.run)
+
+            # self.watcher.activated.connect(self.on_watcher_update)
+
+            self.baker.result.connect(self.import_maps)
+            self.baker.finished.connect(self.baker_thread.quit)
+            # self.baker.finished.connect(self.watcher_thread.quit)
+            self.baker_thread.finished.connect(self.on_dialog_ready_for_accept)
+            self.baker.finished.connect(self.baker.deleteLater)
+            # self.baker.finished.connect(self.watcher.deleteLater)
+            self.baker_thread.finished.connect(self.baker_thread.deleteLater)
+
+            # self.watcher_thread.start()
+            self.baker_thread.start()
+            self.baker_thread.setPriority(QThread.LowestPriority)
         else:
-            self.accept
+            self.on_dialog_ready_for_accept()
 
     @Slot()
     def import_maps(self, d):
