@@ -43,7 +43,7 @@ class TexSet():
 
     def _get_mesh_maps(self, maps):
         mesh_maps = {}
-        if not isinstnace(maps, dict):
+        if not isinstance(maps, dict):
             try:
                 raise ValueError(f"Invalid mesh_maps format: {type(maps)}")
             except ValueError as e:
