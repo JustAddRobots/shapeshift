@@ -111,7 +111,7 @@ class Baker(QObject):
 class Importer(QObject):
     finished = Signal()
 
-    def __init__(self, mesh_maps, **kwargs):
+    def __init__(self, mesh_file_path, mesh_maps, **kwargs):
         super(Importer, self).__init__()
         self._extra_handler = kwargs.setdefault("extra_handler", None)
         self._texset = importtools.TexSet(
