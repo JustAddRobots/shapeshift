@@ -35,8 +35,6 @@ import substance_painter.event as painter_ev
 import substance_painter.exception as painter_exc
 import substance_painter.logging as painter_log
 import substance_painter.project as painter_proj
-# import substance_painter.resource as painter_rsc
-# import substance_painter.textureset as painter_tex
 import substance_painter.ui as painter_ui
 from shapeshift.substance3d.modules import baketools
 from shapeshift.substance3d.modules import importtools
@@ -44,23 +42,11 @@ from shapeshift.substance3d.modules import importtools
 plugin_widgets = []
 
 
-# class Watcher(QObject, filepath):
-#     updated = Signal()
-#
-#     f = open(filepath, "r")
-#     self.notifier = QSocketNotifier(
-#         f.fileno(),
-#         QSocketNotifier.Write,
-#         parent=None
-#     )
-
-
 class QPlainTextEditLogger(QObject):
     append = Signal(str)
 
     def __init__(self, parent):
         super().__init__()
-        # QObject.__init__(self)
         self.widget = QPlainTextEdit(parent)
         self.widget.setReadOnly(True)
         self.widget.setFixedHeight(100)
@@ -151,7 +137,6 @@ class ShapeshiftDialog(QDialog):
         self.button_box = QDialogButtonBox(parent=self)
         self.button_box.addButton(self.create_button, QDialogButtonBox.AcceptRole)
         self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
-        self.button_box_spacer = QSpacerItem(0, 20)
 
         self.main_layout = QVBoxLayout(self)
 
@@ -204,7 +189,6 @@ class ShapeshiftDialog(QDialog):
         self.main_layout.addWidget(self.mesh_file_label)
         self.main_layout.addLayout(self.mesh_file_layout)
         self.main_layout.addLayout(self.mesh_map_layout)
-        # self.main_layout.addSpacerItem(self.button_box_spacer)
         self.main_layout.addWidget(self.logbox_label)
         self.main_layout.addWidget(self.logbox.widget)
         self.main_layout.addWidget(self.button_box)
@@ -265,8 +249,8 @@ class ShapeshiftDialog(QDialog):
 
     @Slot()
     def on_dialog_ready_for_accept(self):
-        time.sleep(2)
-        self.accept()  # TODO: Add fade-out on hide
+        time.sleep(3)
+        self.accept()
 
     @Slot()
     def on_dialog_accepted(self):
@@ -319,9 +303,7 @@ class ShapeshiftDialog(QDialog):
         )
         return project_settings
 
-    @Slot()
     def create_project(self):
-        # self.dialog_vars = self.get_dialog_vars()
         project_settings = self.get_project_settings(
             self.dialog_vars["mesh_file_path"],
             self.dialog_vars["texture_res"]
@@ -351,9 +333,7 @@ class ShapeshiftDialog(QDialog):
                 self.logger.info("Create Project Done.")
 
     def bake_maps(self):
-        # dialog_vars = self.get_dialog_vars()
         if self.dialog_vars["is_bake_maps_checked"]:
-            # logbox_handler = QLogHandler(self.logbox)
             self.logbox_handler = QLogHandler(self.logbox)
             self.baker_thread = QThread(parent=None)
             self.baker = Baker(
@@ -362,33 +342,18 @@ class ShapeshiftDialog(QDialog):
                 extra_handler=self.logbox_handler
             )
             self.baker.moveToThread(self.baker_thread)
-
-            # self.watcher_thread = QThread(parent=None)
-            # self.watcher = Watcher(self.baker.bake_log)
-            # self.watcher.moveToThread(self.watcher_thread)
-
             self.baker_thread.started.connect(self.baker.run)
-            # self.baker_thread.started.connect(self.watcher.run)
-
-            # self.watcher.activated.connect(self.on_watcher_update)
-
             self.baker.result.connect(self.on_baker_result)
             self.baker.finished.connect(self.baker_thread.quit)
-            # self.baker.finished.connect(self.watcher_thread.quit)
-            # self.baker_thread.finished.connect(self.on_dialog_ready_for_accept)
-            # self.baker_thread.finished.connect(self.on_baker_thread_finished)
             self.baker.finished.connect(self.baker.deleteLater)
-            # self.baker.finished.connect(self.watcher.deleteLater)
             self.baker_thread.finished.connect(self.baker_thread.deleteLater)
 
-            # self.watcher_thread.start()
             self.baker_thread.start()
             self.baker_thread.setPriority(QThread.LowestPriority)
         else:
             self.on_dialog_ready_for_accept()
 
     def import_maps(self, mesh_maps):
-        # self.logbox_handler = QLogHandler(self.logbox)
         self.importer_thread = QThread(parent=None)
         self.importer = Importer(
             self.dialog_vars["mesh_file_path"],
@@ -403,64 +368,6 @@ class ShapeshiftDialog(QDialog):
         self.importer_thread.finished.connect(self.importer_thread.deleteLater)
         self.importer_thread.start()
         self.importer_thread.setPriority(QThread.LowestPriority)
-
-#     @Slot()
-#     def import_maps(self, mesh_maps):
-#         mesh_stem = Path(self.dialog_vars["mesh_file_path"]).stem
-#         if mesh_stem.startswith("SM_"):
-#             material_name = mesh_stem.replace("SM_", "M_", 1)
-#         else:
-#             try:
-#                 raise ValueError(
-#                     f"Invalid Static Mesh name: {mesh_stem}"
-#                 )
-#             except ValueError as e:
-#                 painter_log.log(
-#                     painter_log.ERROR,
-#                     "shapeshift",
-#                     f"Import Error: {e}"
-#                 )
-#                 self.logger.error(f"Import Error: {mesh_map}")
-#                 raise
-#
-#         texture_set = painter_tex.TextureSet.from_name(material_name)
-#         map_usage_LUT = {
-#             "ambient-occlusion": painter_tex.MeshMapUsage.AO,
-#             "curvature": painter_tex.MeshMapUsage.Curvature,
-#             "normal": painter_tex.MeshMapUsage.Normal,
-#             "normal-world-space": painter_tex.MeshMapUsage.WorldSpaceNormal,
-#             "position": painter_tex.MeshMapUsage.Position,
-#         }
-#         self.logger.info("Import Baked Maps...")
-#         for mesh_map, mesh_map_filename in mesh_maps.items():
-#             self.logger.info(f"Importing Map: {mesh_map}")
-#             try:
-#                 map_rsc = painter_rsc.import_project_resource(
-#                     mesh_map_filename,
-#                     painter_rsc.Usage.TEXTURE
-#                 )
-#             except (ValueError, RuntimeError) as e:
-#                 painter_log.log(
-#                     painter_log.ERROR,
-#                     "shapeshift",
-#                     f"Import Error: {e}"
-#                 )
-#                 self.logger.error(f"Import Error: {mesh_map}")
-#                 raise
-#
-#             try:
-#                 texture_set.set_mesh_map_resource(
-#                     map_usage_LUT[mesh_map],
-#                     map_rsc.identifier()
-#                 )
-#             except (painter_exc.ResourceNotFoundError, ValueError) as e:
-#                 painter_log.log(
-#                     painter_log.ERROR,
-#                     "shapeshift",
-#                     f"Resource Error: {e}"
-#                 )
-#                 self.logger.error(f"Resource Error: {mesh_map}")
-#                 raise
 
 
 def start_plugin():

@@ -77,7 +77,7 @@ class TexSet():
                 mesh_maps = copy.deepcopy(maps)
         return mesh_maps
 
-    def _import_mesh_maps():
+    def _import_mesh_maps(self):
         if not painter_proj.is_in_edition_state():
             painter_log.log(
                 painter_log.ERROR,
@@ -112,7 +112,7 @@ class TexSet():
                 "position": painter_tex.MeshMapUsage.Position,
             }
             self._logger.info("Import Baked Maps...")
-            for mesh_map, mesh_map_filename in mesh_maps.items():
+            for mesh_map, mesh_map_filename in self._mesh_maps.items():
                 self._logger.info(f"Importing Map: {mesh_map}")
                 try:
                     map_rsc = painter_rsc.import_project_resource(
@@ -141,3 +141,4 @@ class TexSet():
                     )
                     self._logger.error(f"Resource Error: {mesh_map}")
                     raise
+            self._logger.info("Import Baked Maps Done.")
