@@ -241,7 +241,3 @@ class MeshMap():
             pprint.saferepr(baked_mesh_maps)
         )
         return baked_mesh_maps
-
-
-# texset = tex.TextureSet.from_name("M_Structure_Office_Wall_A")
-# mmrsc = texset.get_mesh_map_resource(tex.MeshMapUsage.AO)
