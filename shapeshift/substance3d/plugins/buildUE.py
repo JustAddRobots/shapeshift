@@ -383,7 +383,7 @@ class CreateDialog(QDialog):
 
 
 def start_plugin():
-    app_menu = QMenu(parent=self)
+    app_menu = QMenu(parent=painter_ui.get_main_window())
     app_menu.setTitle("Shapeshift")
     create_dialog = CreateDialog()
     app_menu.addAction(create_dialog.create_action)
