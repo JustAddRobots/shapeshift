@@ -112,19 +112,31 @@ class Importer(QObject):
         self.finished.emit()
 
 
-class ShapeshiftDialog(QDialog):
+# class ExportDialog(QDialog):
+
+# output dir
+# filetype, template
+# list of exports
+# padding? dilation infinite
+# logs
+
+#     def __init__(self):
+#         super(ExportDialog, self).__init__(parent=painter_ui.get_main_window())
+#         self.init_UI()
+
+class CreateDialog(QDialog):
 
     def __init__(self):
-        super(ShapeshiftDialog, self).__init__(parent=painter_ui.get_main_window())
+        super(CreateDialog, self).__init__(parent=painter_ui.get_main_window())
         self.init_UI()
 
     def init_UI(self):
-        self.app_menu = QMenu(parent=self)
-        self.app_menu.setTitle("Shapeshift")
+        # self.app_menu = QMenu(parent=self)
+        # self.app_menu.setTitle("Shapeshift")
         self.create_action = QWidgetAction(self)
         self.create_action.setText("Create UE Project...")
         self.create_action.triggered.connect(self.exec_)
-        self.app_menu.addAction(self.create_action)
+        # self.app_menu.addAction(self.create_action)
 
         self.setWindowTitle("Create UE Project")
 
@@ -371,11 +383,14 @@ class ShapeshiftDialog(QDialog):
 
 
 def start_plugin():
-    shapeshift_dialog = ShapeshiftDialog()
+    app_menu = QMenu(parent=self)
+    app_menu.setTitle("Shapeshift")
+    create_dialog = CreateDialog()
+    app_menu.addAction(create_dialog.create_action)
     painter_ui.add_menu(
-        shapeshift_dialog.app_menu
+        app_menu
     )
-    plugin_widgets.append(shapeshift_dialog)
+    plugin_widgets.append(app_menu)
     return None
 
 
