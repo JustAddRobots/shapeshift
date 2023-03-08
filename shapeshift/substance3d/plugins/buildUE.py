@@ -112,17 +112,111 @@ class Importer(QObject):
         self.finished.emit()
 
 
-# class ExportDialog(QDialog):
+class ExportDialog(QDialog):
 
-# output dir
-# filetype, template
-# list of exports
-# padding? dilation infinite
-# logs
+    def __init__(self):
+        super(ExportDialog, self).__init__(parent=painter_ui.get_main_window())
+        self.init_UI()
 
-#     def __init__(self):
-#         super(ExportDialog, self).__init__(parent=painter_ui.get_main_window())
-#         self.init_UI()
+    def init_UI(self):
+        self.export_action = QWidgetAction(self)
+        self.export_action.setText("Export UE Project...")
+        self.export_action.triggered.connect(self.exec_)
+
+        self.setWindowTitle("Export UE Project")
+
+        self.export_button = QPushButton("Export", parent=self)
+        self.export_button.setEnabled(False)
+        self.export_button.setDefault(False)
+        self.cancel_button = QPushButton("Cancel", parent=self)
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.setDefault(True)
+        self.button_box = QDialogButtonBox(parent=self)
+        self.button_box.addButton(self.export_button, QDialogButtonBox.AcceptRole)
+        self.button_box.addButton(self.cancel_button, QDialogButtonBox.RejectRole)
+
+        self.main_layout = QVBoxLayout(self)
+
+        self.export_dir_layout = QHBoxLayout(self)
+        self.export_dir_label = QLabel(parent=self)
+        self.export_dir_label.setText("Export Directory")
+        self.export_dir_label.setAlignment(Qt.AlignLeft)
+        self.export_dir_line = QLineEdit(parent=self)
+        self.export_dir_button = QToolButton(parent=self)
+        # self.export_dir_button.setIcon(QIcon("SP_DialogOpenButton"))
+        self.export_dir_label.setBuddy(self.export_dir_line)
+        self.export_dir_start_path = str(Path.home())
+
+        self.export_dir_layout.addWidget(self.export_dir_line)
+        self.export_dir_layout.addWidget(self.export_dir_button)
+
+        self.override_param_layout = QHBoxLayout(self)
+        self.file_type_box = QComboBox(parent=self)
+        self.file_type_box.addItems([
+            "Default",
+            "TGA",
+            "PNG",
+        ])
+        self.file_type_box.setCurrentIndex(0)
+        self.file_type_label = QLabel(parent=self)
+        self.file_type_label.setText("File Type")
+        self.file_type_label.setBuddy(self.file_type_box)
+
+        self.override_param_spacer = QSpacerItem(60, 0)
+
+        self.texture_res_box = QComboBox(parent=self)
+        self.texture_res_box.addItems([
+            "Default",
+            "256",
+            "512",
+            "1024",
+            "2048",
+            "4096",
+            "8192",
+        ])
+        self.texture_res_box.setCurrentIndex(0)
+        self.texture_res_label = QLabel(parent=self)
+        self.texture_res_label.setText("Texture Resolution")
+        self.texture_res_label.setBuddy(self.texture_res_box)
+
+        self.override_param_layout.addWidget(self.file_type_box)
+        self.override_param_layout.addSpacerItem(self.override_param_spacer)
+        self.override_param_layout.addWidget(self.texture_res_label)
+        self.override_param_layout.addWidget(self.texture_res_box)
+
+        self.export_list_box = QPlainTextEdit(self)
+        self.export_list_label = QLabel(parent=self)
+        self.export_list.setText("Export List")
+        self.export_list_label.setBuddy(self.export_list_box)
+
+        self.logbox = QPlainTextEditLogger(self)
+        self.logbox_label = QLabel(parent=self)
+        self.logbox_label.setText("Logs")
+        self.logbox_label.setBuddy(self.logbox.widget)
+
+        self.logbox_handler = QLogHandler(self.logbox)
+        self.logger = logging.getLogger()
+        self.logger.addHandler(self.logbox_handler)
+        self.logger.setLevel(logging.DEBUG)
+
+        self.main_layout.addWidget(self.export_dir_label)
+        self.main_layout.addLayout(self.export_dir_layout)
+        self.main_layout.addLayout(self.override_param_layout)
+        self.main_layout.addWidget(self.logbox_label)
+        self.main_layout.addWidget(self.logbox)
+        self.main_layout.addWidget(self.button_box)
+        self.setLayout(self.main_layout)
+
+        # self.button_box.accepted.connect(self.on_create_button_clicked)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        # self.export_dir_button.clicked.connect(self.on_export_dir_button_clicked)
+        # self.export_dir_line.editingFinished.connect(self.on_export_dir_line_edited)
+
+        self.dialog_vars = {}
+
+        # self.accepted.connect(self.on_dialog_accepted)
+
 
 class CreateDialog(QDialog):
 
@@ -131,12 +225,9 @@ class CreateDialog(QDialog):
         self.init_UI()
 
     def init_UI(self):
-        # self.app_menu = QMenu(parent=self)
-        # self.app_menu.setTitle("Shapeshift")
         self.create_action = QWidgetAction(self)
         self.create_action.setText("Create UE Project...")
         self.create_action.triggered.connect(self.exec_)
-        # self.app_menu.addAction(self.create_action)
 
         self.setWindowTitle("Create UE Project")
 
@@ -386,7 +477,9 @@ def start_plugin():
     app_menu = QMenu(parent=painter_ui.get_main_window())
     app_menu.setTitle("Shapeshift")
     create_dialog = CreateDialog()
+    export_dialog = ExportDialog()
     app_menu.addAction(create_dialog.create_action)
+    app_menu.addAction(export_dialog.export_action)
     painter_ui.add_menu(
         app_menu
     )
