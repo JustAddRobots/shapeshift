@@ -89,6 +89,7 @@ class TexSet():
             mesh_stem = Path(self._mesh_file_path).stem
             if mesh_stem.startswith("SM_"):
                 material_name = mesh_stem.replace("SM_", "M_", 1)
+                # material_name = material_name[3:]
             else:
                 try:
                     raise ValueError(

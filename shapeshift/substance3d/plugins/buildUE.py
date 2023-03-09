@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import copy
 import logging
+import math
 import pprint
 import time
 from pathlib import Path
@@ -35,6 +37,7 @@ import substance_painter.event as painter_ev
 import substance_painter.exception as painter_exc
 import substance_painter.logging as painter_log
 import substance_painter.project as painter_proj
+import substance_painter.textureset as painter_tex
 import substance_painter.ui as painter_ui
 from shapeshift.substance3d.modules import baketools
 from shapeshift.substance3d.modules import importtools
@@ -112,6 +115,74 @@ class Importer(QObject):
         self.finished.emit()
 
 
+export_config = {
+    "exportShaderParams": False,
+    "exportParameters": [{
+        "parameters": {
+            "fileFormat": "tga",
+            "bitDepth": "8",
+            "dithering": False,
+            "paddingAlgorithm": "infinite"
+        }
+    }],
+    "exportPresets": [
+        {
+            "name": "Shapeshift",
+            "maps": [
+                {
+                    "fileName": "T_$textureSet_D",
+                    "channels": [
+                        {
+                            "destChannel": "L",
+                            "srcChannel": "L",
+                            "srcMapType": "documentMap",
+                            "srcMapName": "basecolor"
+                        }
+                    ]
+                },
+                {
+                    "fileName": "T_$textureSet_M",
+                    "channels": [
+                        {
+                            "destChannel": "R",
+                            "srcChannel": "L",
+                            "srcMapType": "meshMap",
+                            "srcMapName": "ambient_occlusion"
+                        },
+                        {
+                            "destChannel": "G",
+                            "srcChannel": "L",
+                            "srcMapType": "documentMap",
+                            "srcMapName": "roughness"
+                        },
+                        {
+                            "destChannel": "B",
+                            "srcChannel": "L",
+                            "srcMapType": "documentMap",
+                            "srcMapName": "metallic"
+                        }
+                    ]
+                },
+                {
+                    "fileName": "T_$textureSet_N",
+                    "channels": [
+                        {
+                            "destChannel": "L",
+                            "srcChannel": "L",
+                            "srcMapType": "meshMap",
+                            "srcMapName": "normal_base"
+                        }
+                    ],
+                    "parameter": {
+                        "dithering": True
+                    }
+                }
+            ]
+        }
+    ]
+}
+
+
 class ExportDialog(QDialog):
 
     def __init__(self):
@@ -153,9 +224,8 @@ class ExportDialog(QDialog):
         self.override_param_layout = QHBoxLayout(self)
         self.file_type_box = QComboBox(parent=self)
         self.file_type_box.addItems([
-            "Default",
-            "TGA",
-            "PNG",
+            "tga",
+            "png",
         ])
         self.file_type_box.setCurrentIndex(0)
         self.file_type_label = QLabel(parent=self)
@@ -166,7 +236,7 @@ class ExportDialog(QDialog):
 
         self.texture_res_box = QComboBox(parent=self)
         self.texture_res_box.addItems([
-            "Default",
+            "Current",
             "256",
             "512",
             "1024",
@@ -179,14 +249,17 @@ class ExportDialog(QDialog):
         self.texture_res_label.setText("Texture Resolution")
         self.texture_res_label.setBuddy(self.texture_res_box)
 
+        self.override_param_layout.addWidget(self.file_type_label)
         self.override_param_layout.addWidget(self.file_type_box)
         self.override_param_layout.addSpacerItem(self.override_param_spacer)
         self.override_param_layout.addWidget(self.texture_res_label)
         self.override_param_layout.addWidget(self.texture_res_box)
 
         self.export_list_box = QPlainTextEdit(self)
+        self.export_list_box.setReadOnly(True)
+        self.export_list_box.setFixedHeight(100)
         self.export_list_label = QLabel(parent=self)
-        self.export_list.setText("Export List")
+        self.export_list_label.setText("Export List")
         self.export_list_label.setBuddy(self.export_list_box)
 
         self.logbox = QPlainTextEditLogger(self)
@@ -202,20 +275,155 @@ class ExportDialog(QDialog):
         self.main_layout.addWidget(self.export_dir_label)
         self.main_layout.addLayout(self.export_dir_layout)
         self.main_layout.addLayout(self.override_param_layout)
+        self.main_layout.addWidget(self.export_list_label)
+        self.main_layout.addWidget(self.export_list_box)
         self.main_layout.addWidget(self.logbox_label)
-        self.main_layout.addWidget(self.logbox)
+        self.main_layout.addWidget(self.logbox.widget)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
-        # self.button_box.accepted.connect(self.on_create_button_clicked)
-        self.button_box.accepted.connect(self.accept)
+        self.button_box.accepted.connect(self.on_export_button_clicked)
         self.button_box.rejected.connect(self.reject)
-        # self.export_dir_button.clicked.connect(self.on_export_dir_button_clicked)
-        # self.export_dir_line.editingFinished.connect(self.on_export_dir_line_edited)
+        self.export_dir_button.clicked.connect(self.on_export_dir_button_clicked)
+        self.export_dir_line.editingFinished.connect(self.on_export_dir_line_edited)
 
         self.dialog_vars = {}
+        self.export_config = copy.deepcopy(export_config)
 
-        # self.accepted.connect(self.on_dialog_accepted)
+        painter_ev.DISPATCHER.connect(
+            painter_ev.ExportTexturesEnded,
+            self.on_export_textures_ended
+        )
+        self.accepted.connect(self.on_dialog_accepted)
+
+    @Slot()
+    def on_export_button_clicked(self):
+        self.export_project()
+
+    def enable_buttons(self, export_dir):
+        p = Path(export_dir)
+        if export_dir and p.exists():
+            self.export_dir_line.setText(export_dir)
+            self.set_dialog_vars()
+            self.set_exports()
+            self.show_exports()
+            self.export_button.setEnabled(True)
+            self.export_button.setDefault(True)
+            self.cancel_button.setDefault(False)
+
+    def set_exports(self):
+        self.export_config["exportList"] = [{
+            "rootPath": painter_tex.get_active_stack().material().name(),
+            "exportPreset": "Shapeshift"
+        }]
+        self.export_config["exportPath"] = self.dialog_vars["export_dir"]
+        self.export_config[0]["parameters"]["fileFormat"] = self.dialog_vars["file_type"]
+        self.export_config[0]["parameters"]["sizelog2"] = int(
+            math.log2(self.dialog_vars["texture_res"])
+        )
+
+    def show_exports(self):
+        exports = painter_exp.list_project_textures(self.export_config)
+        exports_text = "\n".join(exports.values())
+        self.export_list_box.setPlainText(exports_text)
+
+    @Slot()
+    def on_export_dir_line_edited(self):
+        self.enable_buttons(self.export_dir_line.text())
+
+    @Slot()
+    def on_export_dir_button_clicked(self):
+        export_dir = QFileDialog.getExistingDirectory(
+            parent=self,
+            caption="Open Export Directory",
+            dir=self.export_dir_start_path,
+            options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        self.enable_buttons(export_dir)
+
+    @Slot()
+    def on_dialog_ready_for_accept(self):
+        time.sleep(3)
+        self.accept()
+
+    @Slot()
+    def on_dialog_accepted(self):
+        self.logbox.widget.clear()
+        p = Path(self.export_dir_line.text())
+        self.export_dir_start_path = str(p.parent)
+
+    def get_textureset_res(self):
+        res = painter_tex.get_active_stack().material().get_resolution()
+        if res.height != res.width:
+            try:
+                raise ValueError(
+                    f"Invalid 1:1 Texture Ratio: {res.height} x {res.width}"
+                )
+            except ValueError as e:
+                painter_log.log(
+                    painter_log.ERROR,
+                    "shapeshift",
+                    f"Texture Resolution Error: {e}"
+                )
+                raise
+        return res.height
+
+    def set_dialog_vars(self):
+        self.dialog_vars["export_dir"] = self.export_dir_line.text()
+        self.dialg_vars["file_type"] = self.file_type_box.currentText()
+
+        texture_res = self.texture_res_box.currentText()
+        if texture_res == "Current":
+            texture_res = self.get_textureset_res()
+
+        try:
+            texture_res = int(texture_res)
+        except ValueError as e:
+            painter_log.log(
+                painter_log.ERROR,
+                "shapeshift",
+                f"Texture Resolution Error: {e}"
+            )
+            raise
+        else:
+            self.dialog_vars["texture_res"] = texture_res
+
+        painter_log.log(
+            painter_log.DBG_INFO,
+            "shapeshift",
+            pprint.saferepr(self.dialog_vars)
+        )
+
+    def export_project(self):
+        self.logger.info("Export Project...")
+        try:
+            painter_exp.export_project_textures(self.export_config)
+        except (painter_exc.ProjectError, ValueError) as e:
+            painter_log.log(
+                painter_log.ERROR,
+                "shapeshift",
+                f"Project Export Error: {e}"
+            )
+            raise
+
+    @Slot()
+    def on_export_textures_ended(self, ev):
+        self.logger.info(ev.str)
+        if ev.status in ["Cancelled"]:
+            self.logger.info("Export Project Cancelled")
+            self.logger.info(ev.str)
+        elif ev.status in ["Warning"]:
+            self.logger.info("Export Project Warning")
+            self.logger.warning(ev.str)
+        elif ev.status in ["Error"]:
+            self.logger.info("Export Project Error")
+            self.logger.error(ev.str)
+        elif ev.status == "Success":
+            exports_text = "\n".join(ev.textures.values())
+            self.logger.info(exports_text)
+            self.logger.info("Export Project Success")
+            self.logger.info("Export Project Done.")
+            self.on_dialog_ready_for_accept()
 
 
 class CreateDialog(QDialog):
@@ -306,6 +514,11 @@ class CreateDialog(QDialog):
         self.dialog_vars = {}
 
         painter_ev.DISPATCHER.connect(
+            painter_ev.ProjectCreated,
+            self.on_project_created
+        )
+
+        painter_ev.DISPATCHER.connect(
             painter_ev.ProjectEditionEntered,
             self.on_project_edition_entered
         )
@@ -316,6 +529,10 @@ class CreateDialog(QDialog):
     def on_create_button_clicked(self):
         self.set_dialog_vars()
         self.create_project()
+
+    @Slot()
+    def on_project_created(self):
+        self.logger.info("Create Project Done.")
 
     @Slot()
     def on_project_edition_entered(self, ev):
@@ -418,8 +635,8 @@ class CreateDialog(QDialog):
                 f"Project Already Open Error: {painter_proj.name()}"
             )
         else:
+            self.logger.info("Create Project...")
             try:
-                self.logger.info("Create Project...")
                 painter_proj.create(
                     self.dialog_vars["mesh_file_path"],
                     # template_file_path=
@@ -432,8 +649,6 @@ class CreateDialog(QDialog):
                     f"Project Creation Error: {e}"
                 )
                 raise
-            else:
-                self.logger.info("Create Project Done.")
 
     def bake_maps(self):
         if self.dialog_vars["is_bake_maps_checked"]:
