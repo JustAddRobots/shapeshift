@@ -117,14 +117,16 @@ class Importer(QObject):
 
 export_config = {
     "exportShaderParams": False,
-    "exportParameters": [{
-        "parameters": {
-            "fileFormat": "tga",
-            "bitDepth": "8",
-            "dithering": False,
-            "paddingAlgorithm": "infinite"
+    "exportParameters": [
+        {
+            "parameters": {
+                "fileFormat": "tga",
+                "bitDepth": "8",
+                "dithering": False,
+                "paddingAlgorithm": "infinite"
+            }
         }
-    }],
+    ],
     "exportPresets": [
         {
             "name": "Shapeshift",
