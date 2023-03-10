@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import copy
+import importlib
 import logging
 import math
 import pprint
@@ -21,6 +22,7 @@ from PySide2.QtWidgets import (
     QPushButton,
     QSpacerItem,
     QToolButton,
+    QTreeWidget,
     QVBoxLayout,
     QWidgetAction,
 )
@@ -35,6 +37,7 @@ from PySide2.QtCore import (
 
 import substance_painter.event as painter_ev
 import substance_painter.exception as painter_exc
+import substance_painter.export as painter_exp
 import substance_painter.logging as painter_log
 import substance_painter.project as painter_proj
 import substance_painter.textureset as painter_tex
@@ -257,6 +260,13 @@ class ExportDialog(QDialog):
         self.override_param_layout.addWidget(self.texture_res_label)
         self.override_param_layout.addWidget(self.texture_res_box)
 
+        self.export_tree = QTreeWidget()
+        self.export_tree.setColumnCount(2)
+        self.export_tree.setHeaderLabels(["Texture", "Resolution"])
+        self.export_tree_label = QLabel(parent=self)
+        self.epxort_tree_label.setText("Export Tree")
+        self.export_tree_label.setBuddy(self.export_tree)
+
         self.export_list_box = QPlainTextEdit(self)
         self.export_list_box.setReadOnly(True)
         self.export_list_box.setFixedHeight(100)
@@ -277,8 +287,10 @@ class ExportDialog(QDialog):
         self.main_layout.addWidget(self.export_dir_label)
         self.main_layout.addLayout(self.export_dir_layout)
         self.main_layout.addLayout(self.override_param_layout)
-        self.main_layout.addWidget(self.export_list_label)
-        self.main_layout.addWidget(self.export_list_box)
+        # self.main_layout.addWidget(self.export_list_label)
+        # self.main_layout.addWidget(self.export_list_box)
+        self.main_layout.addWidget(self.export_tree_label)
+        self.main_layout.addWidget(self.export_tree)
         self.main_layout.addWidget(self.logbox_label)
         self.main_layout.addWidget(self.logbox.widget)
         self.main_layout.addWidget(self.button_box)
@@ -319,15 +331,27 @@ class ExportDialog(QDialog):
             "exportPreset": "Shapeshift"
         }]
         self.export_config["exportPath"] = self.dialog_vars["export_dir"]
-        self.export_config[0]["parameters"]["fileFormat"] = self.dialog_vars["file_type"]
-        self.export_config[0]["parameters"]["sizelog2"] = int(
+        self.export_config["exportParameters"][0]["parameters"]["fileFormat"] = str(
+            self.dialog_vars["file_type"]
+        )
+        self.export_config["exportParameters"][0]["parameters"]["sizelog2"] = int(
             math.log2(self.dialog_vars["texture_res"])
         )
 
     def show_exports(self):
-        exports = painter_exp.list_project_textures(self.export_config)
-        exports_text = "\n".join(exports.values())
-        self.export_list_box.setPlainText(exports_text)
+        # exports = painter_exp.list_project_textures(self.export_config)
+        # exports_text = "\n".join(next(iter(exports.values())))
+        # self.export_list_box.setPlainText(exports_text)
+
+        dict_ = painter_exp.list_project_textures(self.export_config)
+        items = []
+        for k, vs in dict_.items():
+            item = QTreeWidgetItem([k[0]])
+            for v in vs:
+                child = QTreeWidgetItem([v, self.dialog_vars["texture_res"]])
+                item.addChild(child)
+            items.append(item)
+        self.export_tree.insertTopLevelItems(0, items)
 
     @Slot()
     def on_export_dir_line_edited(self):
@@ -372,7 +396,7 @@ class ExportDialog(QDialog):
 
     def set_dialog_vars(self):
         self.dialog_vars["export_dir"] = self.export_dir_line.text()
-        self.dialg_vars["file_type"] = self.file_type_box.currentText()
+        self.dialog_vars["file_type"] = self.file_type_box.currentText()
 
         texture_res = self.texture_res_box.currentText()
         if texture_res == "Current":
@@ -533,7 +557,7 @@ class CreateDialog(QDialog):
         self.create_project()
 
     @Slot()
-    def on_project_created(self):
+    def on_project_created(self, ev):
         self.logger.info("Create Project Done.")
 
     @Slot()
@@ -709,6 +733,17 @@ def close_plugin():
         painter_ui.delete_ui_element(widget)
 
     plugin_widgets.clear()
+    return None
+
+
+def reload_plugin():
+    deps = [
+        baketools,
+        importtools
+    ]
+    for dep in deps:
+        importlib.reload(dep)
+
     return None
 
 
