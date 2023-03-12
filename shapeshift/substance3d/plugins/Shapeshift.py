@@ -320,7 +320,10 @@ class ExportDialog(QDialog):
         self.export_project()
 
     def enable_buttons(self, **kwargs):
-        export_dir = kwargs.setdefault("export_dir", self.dialog_vars["export_dir"])
+        if "export_dir" in self.dialog_vars:
+            export_dir = kwargs.setdefault("export_dir", self.dialog_vars["export_dir"])
+        else:
+            export_dir = kwargs.setdefault("export_dir", "")
         p = Path(export_dir)
         if export_dir and p.exists():
             self.export_dir_line.setText(export_dir)
@@ -345,10 +348,7 @@ class ExportDialog(QDialog):
         )
 
     def show_exports(self):
-        # exports = painter_exp.list_project_textures(self.export_config)
-        # exports_text = "\n".join(next(iter(exports.values())))
-        # self.export_list_box.setPlainText(exports_text)
-
+        self.export_tree.clear()
         dict_ = painter_exp.list_project_textures(self.export_config)
         items = []
         for k, vs in dict_.items():
