@@ -23,6 +23,7 @@ from PySide2.QtWidgets import (
     QSpacerItem,
     QToolButton,
     QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidgetAction,
 )
@@ -237,7 +238,7 @@ class ExportDialog(QDialog):
         self.file_type_label.setText("File Type")
         self.file_type_label.setBuddy(self.file_type_box)
 
-        self.override_param_spacer = QSpacerItem(60, 0)
+        self.override_param_spacer = QSpacerItem(120, 0)
 
         self.texture_res_box = QComboBox(parent=self)
         self.texture_res_box.addItems([
@@ -262,17 +263,19 @@ class ExportDialog(QDialog):
 
         self.export_tree = QTreeWidget()
         self.export_tree.setColumnCount(2)
+        self.export_tree.setFixedHeight(100)
         self.export_tree.setHeaderLabels(["Texture", "Resolution"])
+        self.export_tree.setColumnWidth(0, 300)
         self.export_tree_label = QLabel(parent=self)
-        self.epxort_tree_label.setText("Export Tree")
+        self.export_tree_label.setText("Exports")
         self.export_tree_label.setBuddy(self.export_tree)
 
-        self.export_list_box = QPlainTextEdit(self)
-        self.export_list_box.setReadOnly(True)
-        self.export_list_box.setFixedHeight(100)
-        self.export_list_label = QLabel(parent=self)
-        self.export_list_label.setText("Export List")
-        self.export_list_label.setBuddy(self.export_list_box)
+        # self.export_list_box = QPlainTextEdit(self)
+        # self.export_list_box.setReadOnly(True)
+        # self.export_list_box.setFixedHeight(100)
+        # self.export_list_label = QLabel(parent=self)
+        # self.export_list_label.setText("Export List")
+        # self.export_list_label.setBuddy(self.export_list_box)
 
         self.logbox = QPlainTextEditLogger(self)
         self.logbox_label = QLabel(parent=self)
@@ -300,6 +303,8 @@ class ExportDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         self.export_dir_button.clicked.connect(self.on_export_dir_button_clicked)
         self.export_dir_line.editingFinished.connect(self.on_export_dir_line_edited)
+        self.file_type_box.currentIndexChanged.connect(self.on_override_param_changed)
+        self.texture_res_box.currentIndexChanged.connect(self.on_override_param_changed)
 
         self.dialog_vars = {}
         self.export_config = copy.deepcopy(export_config)
@@ -314,7 +319,8 @@ class ExportDialog(QDialog):
     def on_export_button_clicked(self):
         self.export_project()
 
-    def enable_buttons(self, export_dir):
+    def enable_buttons(self, **kwargs):
+        export_dir = kwargs.setdefault("export_dir", self.dialog_vars["export_dir"])
         p = Path(export_dir)
         if export_dir and p.exists():
             self.export_dir_line.setText(export_dir)
@@ -346,16 +352,18 @@ class ExportDialog(QDialog):
         dict_ = painter_exp.list_project_textures(self.export_config)
         items = []
         for k, vs in dict_.items():
-            item = QTreeWidgetItem([k[0]])
+            item = QTreeWidgetItem([self.dialog_vars["export_dir"]])
             for v in vs:
-                child = QTreeWidgetItem([v, self.dialog_vars["texture_res"]])
+                p = Path(v)
+                child = QTreeWidgetItem([p.name, str(self.dialog_vars["texture_res"])])
                 item.addChild(child)
             items.append(item)
         self.export_tree.insertTopLevelItems(0, items)
+        self.export_tree.expandItem(next(iter(items)))
 
     @Slot()
     def on_export_dir_line_edited(self):
-        self.enable_buttons(self.export_dir_line.text())
+        self.enable_buttons(export_dir=self.export_dir_line.text())
 
     @Slot()
     def on_export_dir_button_clicked(self):
@@ -365,7 +373,11 @@ class ExportDialog(QDialog):
             dir=self.export_dir_start_path,
             options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
-        self.enable_buttons(export_dir)
+        self.enable_buttons(export_dir=export_dir)
+
+    @Slot()
+    def on_override_param_changed(self):
+        self.enable_buttons()
 
     @Slot()
     def on_dialog_ready_for_accept(self):
