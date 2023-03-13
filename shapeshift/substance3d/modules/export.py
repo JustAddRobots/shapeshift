@@ -179,7 +179,13 @@ class ExportDialog(QDialog):
             self.show_exports()
             self.export_button.setEnabled(True)
             self.export_button.setDefault(True)
+            self.cancel_button.setEnabled(True)
             self.cancel_button.setDefault(False)
+        else:
+            self.export_button.setEnabled(False)
+            self.export_button.setDefault(False)
+            self.cancel_button.setEnabled(True)
+            self.cancel_button.setDefault(True)
 
     def set_exports(self):
         self.export_config["exportList"] = [{
@@ -293,19 +299,18 @@ class ExportDialog(QDialog):
 
     @Slot()
     def on_export_textures_ended(self, ev):
-        self.logger.info(ev.str)
+        self.logger.info(ev.message)
         if ev.status in ["Cancelled"]:
             self.logger.info("Export Project Cancelled")
-            self.logger.info(ev.str)
+            self.logger.info(ev.message)
         elif ev.status in ["Warning"]:
             self.logger.info("Export Project Warning")
-            self.logger.warning(ev.str)
+            self.logger.warning(ev.message)
         elif ev.status in ["Error"]:
             self.logger.info("Export Project Error")
-            self.logger.error(ev.str)
+            self.logger.error(ev.message)
         elif ev.status == "Success":
             exports_text = "\n".join(ev.textures.values())
             self.logger.info(exports_text)
             self.logger.info("Export Project Success")
-            self.logger.info("Export Project Done.")
             self.on_dialog_ready_for_accept()

@@ -21,6 +21,7 @@ class QPlainTextEditLogger(QObject):
         self.widget.setReadOnly(True)
         self.widget.setFixedHeight(100)
         self.widget.setBackgroundVisible(False)
+        self.widget.clear()
         self.append.connect(self.widget.appendPlainText)
 
 

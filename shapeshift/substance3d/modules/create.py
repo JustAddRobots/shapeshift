@@ -202,7 +202,13 @@ class CreateDialog(QDialog):
             self.mesh_file_line.setText(mesh_file_path)
             self.create_button.setEnabled(True)
             self.create_button.setDefault(True)
+            self.cancel_button.setEnabled(True)
             self.cancel_button.setDefault(False)
+        else:
+            self.create_button.setEnabled(False)
+            self.create_button.setDefault(False)
+            self.cancel_button.setEnabled(True)
+            self.cancel_button.setDefault(True)
 
     @Slot()
     def on_mesh_file_line_edited(self):
