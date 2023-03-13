@@ -37,7 +37,8 @@ import substance_painter.logging as painter_log
 import substance_painter.textureset as painter_tex
 import substance_painter.ui as painter_ui
 
-from shapeshift.substance3d.modules import logbox
+from shapeshift.substance3d.modules.logbox import QLogHandler
+from shapeshift.substance3d.modules.logbox import QPlainTextEditLogger
 from shapeshift.substance3d.modules.exportconfig import get_export_config
 
 
@@ -125,12 +126,12 @@ class ExportDialog(QDialog):
         self.export_tree_label.setText("Exports")
         self.export_tree_label.setBuddy(self.export_tree)
 
-        self.logbox = logbox.QPlainTextEditLogger(self)
+        self.logbox = QPlainTextEditLogger(self)
         self.logbox_label = QLabel(parent=self)
         self.logbox_label.setText("Logs")
         self.logbox_label.setBuddy(self.logbox.widget)
 
-        self.logbox_handler = logbox.QLogHandler(self.logbox)
+        self.logbox_handler = QLogHandler(self.logbox)
         self.logger = logging.getLogger()
         self.logger.addHandler(self.logbox_handler)
         self.logger.setLevel(logging.DEBUG)

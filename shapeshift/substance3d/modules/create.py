@@ -32,9 +32,11 @@ import substance_painter.exception as painter_exc
 import substance_painter.logging as painter_log
 import substance_painter.project as painter_proj
 import substance_painter.ui as painter_ui
+
 from shapeshift.substance3d.modules import baketools
 from shapeshift.substance3d.modules import importtools
-from shapeshift.substance3d.modules import logbox
+from shapeshift.substance3d.modules.logbox import QLogHandler
+from shapeshift.substance3d.modules.logbox import QPlainTextEditLogger
 
 plugin_widgets = []
 
@@ -143,12 +145,12 @@ class CreateDialog(QDialog):
         self.mesh_map_layout.addWidget(self.texture_res_label)
         self.mesh_map_layout.addWidget(self.texture_res_box)
 
-        self.logbox = logbox.QPlainTextEditLogger(self)
+        self.logbox = QPlainTextEditLogger(self)
         self.logbox_label = QLabel(parent=self)
         self.logbox_label.setText("Logs")
         self.logbox_label.setBuddy(self.logbox.widget)
 
-        self.logbox_handler = logbox.QLogHandler(self.logbox)
+        self.logbox_handler = QLogHandler(self.logbox)
         self.logger = logging.getLogger()
         self.logger.addHandler(self.logbox_handler)
         self.logger.setLevel(logging.DEBUG)
