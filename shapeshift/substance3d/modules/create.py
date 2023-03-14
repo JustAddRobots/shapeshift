@@ -171,21 +171,18 @@ class CreateDialog(QDialog):
         self.bake_checkbox.stateChanged.connect(self.on_bake_checkbox_changed)
 
         self.dialog_vars = {}
-
-        painter_ev.DISPATCHER.connect(
-            painter_ev.ProjectCreated,
-            self.on_project_created
-        )
-
-        painter_ev.DISPATCHER.connect(
-            painter_ev.ProjectEditionEntered,
-            self.on_project_edition_entered
-        )
-
         self.accepted.connect(self.on_dialog_accepted)
 
     @Slot()
     def on_create_button_clicked(self):
+        painter_ev.DISPATCHER.connect(
+            painter_ev.ProjectCreated,
+            self.on_project_created
+        )
+        painter_ev.DISPATCHER.connect(
+            painter_ev.ProjectEditionEntered,
+            self.on_project_edition_entered
+        )
         self.set_dialog_vars()
         self.create_project()
 
@@ -199,7 +196,7 @@ class CreateDialog(QDialog):
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
-        if mesh_file_path and p.exists():
+        if mesh_file_path and p.exists() and p.is_file():
             self.mesh_file_line.setText(mesh_file_path)
             self.create_button.setEnabled(True)
             self.create_button.setDefault(True)

@@ -157,14 +157,14 @@ class ExportDialog(QDialog):
         self.dialog_vars = {}
         self.export_config = copy.deepcopy(get_export_config())
 
-        painter_ev.DISPATCHER.connect(
-            painter_ev.ExportTexturesEnded,
-            self.on_export_textures_ended
-        )
         self.accepted.connect(self.on_dialog_accepted)
 
     @Slot()
     def on_export_button_clicked(self):
+        painter_ev.DISPATCHER.connect(
+            painter_ev.ExportTexturesEnded,
+            self.on_export_textures_ended
+        )
         self.export_project()
 
     def enable_buttons(self, **kwargs):
@@ -173,7 +173,7 @@ class ExportDialog(QDialog):
         else:
             export_dir = kwargs.setdefault("export_dir", "")
         p = Path(export_dir)
-        if export_dir and p.exists():
+        if export_dir and p.exists() and p.is_dir():
             self.export_dir_line.setText(export_dir)
             self.set_dialog_vars()
             self.set_exports()
@@ -299,8 +299,17 @@ class ExportDialog(QDialog):
             raise
 
     @Slot()
+    def on_export_textures_about_to_start(self, ev):
+        # self.logger.info(ev.textures)
+        pass
+
+    @Slot()
     def on_export_textures_ended(self, ev):
-        self.logger.info(ev.status)
+        painter_log.log(
+            painter_log.DBG_INFO,
+            "shapeshift",
+            f"ev: {ev.status} {ev.textures}"
+        )
         if ev.status == painter_exp.ExportStatus.Cancelled:
             self.logger.info("Export Project Cancelled")
             self.logger.info(ev.message)
@@ -311,8 +320,7 @@ class ExportDialog(QDialog):
             self.logger.info("Export Project Error")
             self.logger.error(ev.message)
         elif ev.status == painter_exp.ExportStatus.Success:
-            # exports_text = "\n".join(next(iter(ev.textures.values())))
-            # self.logger.info(exports_text)
-            self.logger.info(ev.textures.values())
+            exports = "\n".join(next(iter(ev.textures.values())))
+            self.logger.info(exports)
             self.logger.info("Export Project Success")
             self.on_dialog_ready_for_accept()
