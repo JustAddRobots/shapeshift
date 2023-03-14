@@ -300,7 +300,7 @@ class ExportDialog(QDialog):
 
     @Slot()
     def on_export_textures_ended(self, ev):
-        self.logger.info(ev.textures.values())
+        self.logger.info(ev.status)
         if ev.status == painter_exp.ExportStatus.Cancelled:
             self.logger.info("Export Project Cancelled")
             self.logger.info(ev.message)
@@ -311,7 +311,8 @@ class ExportDialog(QDialog):
             self.logger.info("Export Project Error")
             self.logger.error(ev.message)
         elif ev.status == painter_exp.ExportStatus.Success:
-            exports_text = "\n".join(next(iter(ev.textures.values())))
-            self.logger.info(exports_text)
+            # exports_text = "\n".join(next(iter(ev.textures.values())))
+            # self.logger.info(exports_text)
+            self.logger.info(ev.textures.values())
             self.logger.info("Export Project Success")
             self.on_dialog_ready_for_accept()
