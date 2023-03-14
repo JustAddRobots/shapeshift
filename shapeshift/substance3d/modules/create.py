@@ -149,6 +149,7 @@ class CreateDialog(QDialog):
         self.logbox_label = QLabel(parent=self)
         self.logbox_label.setText("Logs")
         self.logbox_label.setBuddy(self.logbox.widget)
+        self.logbox.widget.clear()
 
         self.logbox_handler = QLogHandler(self.logbox)
         self.logger = logging.getLogger()
