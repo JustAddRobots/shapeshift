@@ -130,10 +130,10 @@ class ExportDialog(QDialog):
         self.logbox_label = QLabel(parent=self)
         self.logbox_label.setText("Logs")
         self.logbox_label.setBuddy(self.logbox.widget)
-        self.logbox.widget.clear()
+        # self.logbox.widget.clear()
 
         self.logbox_handler = QLogHandler(self.logbox)
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__name__)
         self.logger.addHandler(self.logbox_handler)
         self.logger.setLevel(logging.DEBUG)
 
@@ -240,7 +240,7 @@ class ExportDialog(QDialog):
 
     @Slot()
     def on_dialog_accepted(self):
-        self.logbox.widget.clear()
+        # self.logbox.widget.clear()
         p = Path(self.export_dir_line.text())
         self.export_dir_start_path = str(p.parent)
 
@@ -300,6 +300,7 @@ class ExportDialog(QDialog):
 
     @Slot()
     def on_export_textures_ended(self, ev):
+        self.logger.info(ev.textures.values())
         if ev.status == painter_exp.ExportStatus.Cancelled:
             self.logger.info("Export Project Cancelled")
             self.logger.info(ev.message)

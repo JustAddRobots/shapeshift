@@ -152,7 +152,7 @@ class CreateDialog(QDialog):
         self.logbox.widget.clear()
 
         self.logbox_handler = QLogHandler(self.logbox)
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__name__)
         self.logger.addHandler(self.logbox_handler)
         self.logger.setLevel(logging.DEBUG)
 
