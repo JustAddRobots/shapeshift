@@ -1,4 +1,4 @@
-import copy
+# import copy
 import logging
 import math
 import pprint
@@ -22,27 +22,46 @@ from PySide2.QtWidgets import (
     QWidgetAction,
 )
 from PySide2.QtCore import (
-    # QObject,
+    QObject,
     Qt,
-    # QThread,
-    # Signal,
+    QThread,
+    Signal,
     Slot,
 )
 # from PySide2.QtGui import QIcon
 
 import substance_painter.event as painter_ev
-import substance_painter.exception as painter_exc
+# import substance_painter.exception as painter_exc
 import substance_painter.export as painter_exp
 import substance_painter.logging as painter_log
 import substance_painter.textureset as painter_tex
 import substance_painter.ui as painter_ui
 
+from shapeshift.substance3d.modules import exporttools
+from shapeshift.substance3d.modules.exportconfig import get_export_config
 from shapeshift.substance3d.modules.logbox import QLogHandler
 from shapeshift.substance3d.modules.logbox import QPlainTextEditLogger
-from shapeshift.substance3d.modules.exportconfig import get_export_config
 
 
 plugin_widgets = []
+
+
+class Exporter(QObject):
+    finished = Signal
+
+    def __init__(self, **kwargs):
+        super(Exporter, self).__init__()
+        self._export_config = kwargs.setdefault("export_config", None)
+        self._extra_handler = kwargs.setdefault("extra_handler", None)
+        self._exset = exporttools.ExportSet(
+            export_config=self._export_config,
+            extra_handler=self._extra_handler,
+        )
+
+    @Slot()
+    def run(self):
+        self._exset.export_textures()
+        self.finished.emit()
 
 
 class ExportDialog(QDialog):
@@ -133,7 +152,7 @@ class ExportDialog(QDialog):
         # self.logbox.widget.clear()
 
         self.logbox_handler = QLogHandler(self.logbox)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger()
         self.logger.addHandler(self.logbox_handler)
         self.logger.setLevel(logging.DEBUG)
 
@@ -155,7 +174,7 @@ class ExportDialog(QDialog):
         self.texture_res_box.currentIndexChanged.connect(self.on_override_param_changed)
 
         self.dialog_vars = {}
-        self.export_config = copy.deepcopy(get_export_config())
+        self.export_config = get_export_config()
 
         self.accepted.connect(self.on_dialog_accepted)
 
@@ -165,7 +184,7 @@ class ExportDialog(QDialog):
             painter_ev.ExportTexturesEnded,
             self.on_export_textures_ended
         )
-        self.export_project()
+        self.export_textures()
 
     def enable_buttons(self, **kwargs):
         if "export_dir" in self.dialog_vars:
@@ -286,18 +305,6 @@ class ExportDialog(QDialog):
             pprint.saferepr(self.dialog_vars)
         )
 
-    def export_project(self):
-        self.logger.info("Export Project...")
-        try:
-            painter_exp.export_project_textures(self.export_config)
-        except (painter_exc.ProjectError, ValueError) as e:
-            painter_log.log(
-                painter_log.ERROR,
-                "shapeshift",
-                f"Project Export Error: {e}"
-            )
-            raise
-
     @Slot()
     def on_export_textures_about_to_start(self, ev):
         # self.logger.info(ev.textures)
@@ -324,3 +331,18 @@ class ExportDialog(QDialog):
             self.logger.info(exports)
             self.logger.info("Export Project Success")
             self.on_dialog_ready_for_accept()
+
+    def export_textures(self):
+        self.exporter_thread = QThread(parent=None)
+        self.exporter = Exporter(
+            export_config=self.export_config,
+            extra_handler=self.logbox_handler
+        )
+        self.exporter.moveToThread(self.exporter_thread)
+        self.exporter.thread.started.connect(self.exporter.run)
+        self.exporter.finished.connect(self.exporter_thread.quit)
+        # self.exporter_thread.finished.connect(self.on_dialog_ready_for_accept)
+        self.exporter.finished.connect(self.exporter.deleteLater)
+        self.exporter_thread.finished.connect(self.exporter_thread.deleteLater)
+        self.exporter_thread.start()
+        self.exporter_thread.setPriority(QThread.LowestPriority)
