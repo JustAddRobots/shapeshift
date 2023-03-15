@@ -27,7 +27,7 @@ class ExportSet():
     def _export_textures(self):
         self._logger.info("Export Project...")
         try:
-            painter_exp.export_project_textures(self._export_config)
+            export_result = painter_exp.export_project_textures(self._export_config)
         except (painter_exc.ProjectError, ValueError) as e:
             painter_log.log(
                 painter_log.ERROR,
@@ -36,3 +36,5 @@ class ExportSet():
             )
             self._logger.error("Export Error: {e}")
             raise
+        else:
+            return export_result

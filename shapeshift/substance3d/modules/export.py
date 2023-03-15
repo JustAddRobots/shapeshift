@@ -22,46 +22,28 @@ from PySide2.QtWidgets import (
     QWidgetAction,
 )
 from PySide2.QtCore import (
-    QObject,
+    # QObject,
     Qt,
-    QThread,
-    Signal,
+    # QThread,
+    # Signal,
     Slot,
 )
 # from PySide2.QtGui import QIcon
 
-import substance_painter.event as painter_ev
+# import substance_painter.event as painter_ev
 # import substance_painter.exception as painter_exc
 import substance_painter.export as painter_exp
 import substance_painter.logging as painter_log
 import substance_painter.textureset as painter_tex
 import substance_painter.ui as painter_ui
 
-from shapeshift.substance3d.modules import exporttools
+# from shapeshift.substance3d.modules import exporttools
 from shapeshift.substance3d.modules.exportconfig import get_export_config
 from shapeshift.substance3d.modules.logbox import QLogHandler
 from shapeshift.substance3d.modules.logbox import QPlainTextEditLogger
 
 
 plugin_widgets = []
-
-
-class Exporter(QObject):
-    finished = Signal
-
-    def __init__(self, **kwargs):
-        super(Exporter, self).__init__()
-        self._export_config = kwargs.setdefault("export_config", None)
-        self._extra_handler = kwargs.setdefault("extra_handler", None)
-        self._exset = exporttools.ExportSet(
-            export_config=self._export_config,
-            extra_handler=self._extra_handler,
-        )
-
-    @Slot()
-    def run(self):
-        self._exset.export_textures()
-        self.finished.emit()
 
 
 class ExportDialog(QDialog):
@@ -180,11 +162,12 @@ class ExportDialog(QDialog):
 
     @Slot()
     def on_export_button_clicked(self):
-        painter_ev.DISPATCHER.connect(
-            painter_ev.ExportTexturesEnded,
-            self.on_export_textures_ended
-        )
-        self.export_textures()
+        # painter_ev.DISPATCHER.connect(
+        #     painter_ev.ExportTexturesEnded,
+        #     self.on_export_textures_ended
+        # )
+        self.export_result = self.export_textures()
+        self.check_export_result()
 
     def enable_buttons(self, **kwargs):
         if "export_dir" in self.dialog_vars:
@@ -310,39 +293,39 @@ class ExportDialog(QDialog):
         # self.logger.info(ev.textures)
         pass
 
-    @Slot()
-    def on_export_textures_ended(self, ev):
+    def check_export_result(self):
         painter_log.log(
             painter_log.DBG_INFO,
             "shapeshift",
-            f"ev: {ev.status} {ev.textures}"
+            f"export_result: {self.export_result.status} "
+            f"{self.export_result.textures}"
         )
-        if ev.status == painter_exp.ExportStatus.Cancelled:
+        if self.export_result.status == painter_exp.ExportStatus.Cancelled:
             self.logger.info("Export Project Cancelled")
-            self.logger.info(ev.message)
-        elif ev.status == painter_exp.ExportStatus.Warning:
+            self.logger.info(self.export_result.message)
+        elif self.export_result.status == painter_exp.ExportStatus.Warning:
             self.logger.info("Export Project Warning")
-            self.logger.warning(ev.message)
-        elif ev.status == painter_exp.ExportStatus.Error:
+            self.logger.warning(self.export_result.message)
+        elif self.export_result.status == painter_exp.ExportStatus.Error:
             self.logger.info("Export Project Error")
-            self.logger.error(ev.message)
-        elif ev.status == painter_exp.ExportStatus.Success:
-            exports = "\n".join(next(iter(ev.textures.values())))
+            self.logger.error(self.export_result.message)
+        elif self.export_result.status == painter_exp.ExportStatus.Success:
+            exports = "\n".join(next(iter(self.export_result.textures.values())))
             self.logger.info(exports)
             self.logger.info("Export Project Success")
             self.on_dialog_ready_for_accept()
 
     def export_textures(self):
-        self.exporter_thread = QThread(parent=None)
-        self.exporter = Exporter(
-            export_config=self.export_config,
-            extra_handler=self.logbox_handler
-        )
-        self.exporter.moveToThread(self.exporter_thread)
-        self.exporter.thread.started.connect(self.exporter.run)
-        self.exporter.finished.connect(self.exporter_thread.quit)
-        # self.exporter_thread.finished.connect(self.on_dialog_ready_for_accept)
-        self.exporter.finished.connect(self.exporter.deleteLater)
-        self.exporter_thread.finished.connect(self.exporter_thread.deleteLater)
-        self.exporter_thread.start()
-        self.exporter_thread.setPriority(QThread.LowestPriority)
+        self._logger.info("Export Project...")
+        try:
+            export_result = painter_exp.export_project_textures(self._export_config)
+        except (painter_exc.ProjectError, ValueError) as e:
+            painter_log.log(
+                painter_log.ERROR,
+                "shapeshift",
+                f"Project Export Error: {e}"
+            )
+            self._logger.error("Export Error: {e}")
+            raise
+        else:
+            return export_result
