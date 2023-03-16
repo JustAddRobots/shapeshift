@@ -9,6 +9,7 @@ from shapeshift.substance3d.modules import export
 
 
 plugin_widgets = []
+plugin_loggers = []
 
 
 def start_plugin():
@@ -22,14 +23,20 @@ def start_plugin():
         app_menu
     )
     plugin_widgets.append(app_menu)
+    plugin_loggers.append(create_dialog.logger)
+    plugin_loggers.append(export_dialog.logger)
     return None
 
 
 def close_plugin():
     for widget in plugin_widgets:
         painter_ui.delete_ui_element(widget)
-
     plugin_widgets.clear()
+
+    for logger in plugin_loggers:
+        for handler in logger.handlers:
+            logger.removeHander(handler)
+
     return None
 
 
