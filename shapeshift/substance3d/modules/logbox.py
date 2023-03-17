@@ -9,9 +9,6 @@ from PySide2.QtCore import (
 )
 
 
-plugin_widgets = []
-
-
 class QPlainTextEditLogger(QObject):
     append = Signal(str)
 
@@ -20,7 +17,6 @@ class QPlainTextEditLogger(QObject):
         self.widget = QPlainTextEdit(parent)
         self.widget.setReadOnly(True)
         self.widget.setFixedHeight(100)
-        self.widget.setBackgroundVisible(False)
         # self.widget.clear()
         self.append.connect(self.widget.appendPlainText)
 

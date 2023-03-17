@@ -2,7 +2,6 @@
 import logging
 import math
 import pprint
-import time
 from pathlib import Path
 
 from PySide2.QtWidgets import (
@@ -149,7 +148,7 @@ class ExportDialog(QDialog):
         self.setLayout(self.main_layout)
 
         self.button_box.accepted.connect(self.on_export_button_clicked)
-        elf.button_box.rejected.connect(self.reject)
+        self.button_box.rejected.connect(self.reject)
         self.export_dir_button.clicked.connect(self.on_export_dir_button_clicked)
         self.export_dir_line.editingFinished.connect(self.on_export_dir_line_edited)
         self.file_type_box.currentIndexChanged.connect(self.on_override_param_changed)
@@ -162,12 +161,26 @@ class ExportDialog(QDialog):
 
     @Slot()
     def on_export_button_clicked(self):
-        painter_ev.DISPATCHER.connect(
-            painter_ev.ExportTexturesEnded,
-            self.on_export_textures_ended
-        )
         self.export_result = self.export_textures()
-        # self.check_export_result()
+        self.check_export_result()
+
+    def enable_OK(self):
+        self.export_button.setText("OK")
+        self.export_button.setEnabled(True)
+        self.export_button.setDefault(True)
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.setDefault(False)
+        self.button_box.accepted.disconnect(self.on_export_button_clicked)
+        self.button_box.accepted.connect(self.accept)
+
+    def reset_buttons(self):
+        self.export_button.setText("Export")
+        self.export_button.setEnabled(False)
+        self.export_button.setDefault(False)
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.setDefault(True)
+        self.button_box.accepted.disconnect(self.accept)
+        self.button_box.accepted.connect(self.on_export_button_clicked)
 
     def enable_buttons(self, **kwargs):
         if "export_dir" in self.dialog_vars:
@@ -236,15 +249,11 @@ class ExportDialog(QDialog):
         self.enable_buttons()
 
     @Slot()
-    def on_dialog_ready_for_accept(self):
-        time.sleep(3)
-        self.accept()
-
-    @Slot()
     def on_dialog_accepted(self):
         # self.logbox.widget.clear()
         p = Path(self.export_dir_line.text())
         self.export_dir_start_path = str(p.parent)
+        self.reset_buttons()
 
     def get_textureset_res(self):
         res = painter_tex.get_active_stack().material().get_resolution()
@@ -288,55 +297,27 @@ class ExportDialog(QDialog):
             pprint.saferepr(self.dialog_vars)
         )
 
-    @Slot()
-    def on_export_textures_about_to_start(self, ev):
-        # self.logger.info(ev.textures)
-        pass
-
-    @Slot()
-    def on_export_textures_ended(self, ev):
+    def check_export_result(self):
         painter_log.log(
             painter_log.DBG_INFO,
             "shapeshift",
-            f"export_result: {ev.status} "
-            f"{ev.textures}"
+            f"export_result: {self.export_result.status} "
+            f"{self.export_result.textures}"
         )
-        if ev.status == painter_exp.ExportStatus.Cancelled:
-            self.logger.info("Export Project Cancelled")
-            self.logger.info(ev.message)
-        elif ev.status == painter_exp.ExportStatus.Warning:
-            self.logger.info("Export Project Warning")
-            self.logger.warning(ev.message)
-        elif ev.status == painter_exp.ExportStatus.Error:
-            self.logger.info("Export Project Error")
-            self.logger.error(ev.message)
-        elif ev.status == painter_exp.ExportStatus.Success:
-            exports = "\n".join(next(iter(ev.textures.values())))
+        if self.export_result.status == painter_exp.ExportStatus.Cancelled:
+            self.logger.info("Export Project Cancelled.")
+            self.logger.info(self.export_result.message)
+        elif self.export_result.status == painter_exp.ExportStatus.Warning:
+            self.logger.info("Export Project Warning.")
+            self.logger.warning(self.export_result.message)
+        elif self.export_result.status == painter_exp.ExportStatus.Error:
+            self.logger.info("Export Project Error.")
+            self.logger.error(self.export_result.message)
+        elif self.export_result.status == painter_exp.ExportStatus.Success:
+            exports = "\n".join(next(iter(self.export_result.textures.values())))
             self.logger.info(exports)
-            self.logger.info("Export Project Success")
-            self.on_dialog_ready_for_accept()
-
-#     def check_export_result(self):
-#         painter_log.log(
-#             painter_log.DBG_INFO,
-#             "shapeshift",
-#             f"export_result: {self.export_result.status} "
-#             f"{self.export_result.textures}"
-#         )
-#         if self.export_result.status == painter_exp.ExportStatus.Cancelled:
-#             self.logger.info("Export Project Cancelled")
-#             self.logger.info(self.export_result.message)
-#         elif self.export_result.status == painter_exp.ExportStatus.Warning:
-#             self.logger.info("Export Project Warning")
-#             self.logger.warning(self.export_result.message)
-#         elif self.export_result.status == painter_exp.ExportStatus.Error:
-#             self.logger.info("Export Project Error")
-#             self.logger.error(self.export_result.message)
-#         elif self.export_result.status == painter_exp.ExportStatus.Success:
-#             exports = "\n".join(next(iter(self.export_result.textures.values())))
-#             self.logger.info(exports)
-#             self.logger.info("Export Project Success")
-#             self.on_dialog_ready_for_accept()
+            self.logger.info("Export Project Success.")
+            self.enable_OK()
 
     def export_textures(self):
         self.logger.info("Export Project...")

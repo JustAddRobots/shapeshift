@@ -35,7 +35,7 @@ def close_plugin():
 
     for logger in plugin_loggers:
         for handler in logger.handlers:
-            logger.removeHander(handler)
+            logger.removeHandler(handler)
 
     return None
 
