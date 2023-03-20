@@ -29,14 +29,11 @@ from PySide2.QtCore import (
 )
 # from PySide2.QtGui import QIcon
 
-# import substance_painter.event as painter_ev
-# import substance_painter.exception as painter_exc
 import substance_painter.export as painter_exp
 import substance_painter.logging as painter_log
 import substance_painter.textureset as painter_tex
 import substance_painter.ui as painter_ui
 
-# from shapeshift.substance3d.modules import exporttools
 from shapeshift.substance3d.modules.exportconfig import get_export_config
 from shapeshift.substance3d.modules.logbox import QLogHandler
 from shapeshift.substance3d.modules.logbox import QPlainTextEditLogger
@@ -130,7 +127,6 @@ class ExportDialog(QDialog):
         self.logbox_label = QLabel(parent=self)
         self.logbox_label.setText("Logs")
         self.logbox_label.setBuddy(self.logbox.widget)
-        # self.logbox.widget.clear()
 
         self.logbox_handler = QLogHandler(self.logbox)
         self.logger = logging.getLogger(__name__)
@@ -164,8 +160,8 @@ class ExportDialog(QDialog):
         self.export_result = self.export_textures()
         self.check_export_result()
 
-    def enable_OK(self):
-        self.export_button.setText("OK")
+    def enable_dismiss(self):
+        self.export_button.setText("Dismiss")
         self.export_button.setEnabled(True)
         self.export_button.setDefault(True)
         self.cancel_button.setEnabled(False)
@@ -212,8 +208,13 @@ class ExportDialog(QDialog):
         self.export_config["exportParameters"][0]["parameters"]["fileFormat"] = str(
             self.dialog_vars["file_type"]
         )
-        self.export_config["exportParameters"][0]["parameters"]["sizelog2"] = int(
+        self.export_config["exportParameters"][0]["parameters"]["sizeLog2"] = int(
             math.log2(self.dialog_vars["texture_res"])
+        )
+        painter_log.log(
+            painter_log.DBG_INFO,
+            "shapeshift",
+            f"export_config: {self.export_config}"
         )
 
     def show_exports(self):
@@ -250,10 +251,11 @@ class ExportDialog(QDialog):
 
     @Slot()
     def on_dialog_accepted(self):
-        # self.logbox.widget.clear()
         p = Path(self.export_dir_line.text())
         self.export_dir_start_path = str(p.parent)
         self.reset_buttons()
+        self.logbox.widget.clear()
+        self.export_tree.clear()
 
     def get_textureset_res(self):
         res = painter_tex.get_active_stack().material().get_resolution()

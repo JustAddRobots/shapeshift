@@ -10,7 +10,8 @@ export_config = {
                 "bitDepth": "8",
                 "dithering": False,
                 "paddingAlgorithm": "infinite"
-            }
+            },
+            "filter": {}
         }
     ],
     "exportPresets": [
@@ -61,7 +62,7 @@ export_config = {
                             "srcMapName": "normal_base"
                         }
                     ],
-                    "parameter": {
+                    "parameters": {
                         "dithering": True
                     }
                 }
