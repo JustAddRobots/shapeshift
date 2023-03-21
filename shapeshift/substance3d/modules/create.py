@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 import pprint
 import time
@@ -14,8 +12,6 @@ from PySide2.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMenu,
-    QPlainTextEdit,
     QPushButton,
     QSpacerItem,
     QToolButton,
@@ -36,37 +32,13 @@ import substance_painter.exception as painter_exc
 import substance_painter.logging as painter_log
 import substance_painter.project as painter_proj
 import substance_painter.ui as painter_ui
+
 from shapeshift.substance3d.modules import baketools
 from shapeshift.substance3d.modules import importtools
+from shapeshift.substance3d.modules.logbox import QLogHandler
+from shapeshift.substance3d.modules.logbox import QPlainTextEditLogger
 
 plugin_widgets = []
-
-
-class QPlainTextEditLogger(QObject):
-    append = Signal(str)
-
-    def __init__(self, parent):
-        super().__init__()
-        self.widget = QPlainTextEdit(parent)
-        self.widget.setReadOnly(True)
-        self.widget.setFixedHeight(100)
-        self.widget.setBackgroundVisible(False)
-        self.append.connect(self.widget.appendPlainText)
-
-
-class QLogHandler(logging.Handler):
-
-    def __init__(self, emitter):
-        super().__init__()
-        self._emitter = emitter
-
-    @property
-    def emitter(self):
-        return self._emitter
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.emitter.append.emit(msg)
 
 
 class Baker(QObject):
@@ -112,19 +84,16 @@ class Importer(QObject):
         self.finished.emit()
 
 
-class ShapeshiftDialog(QDialog):
+class CreateDialog(QDialog):
 
     def __init__(self):
-        super(ShapeshiftDialog, self).__init__(parent=painter_ui.get_main_window())
+        super(CreateDialog, self).__init__(parent=painter_ui.get_main_window())
         self.init_UI()
 
     def init_UI(self):
-        self.app_menu = QMenu(parent=self)
-        self.app_menu.setTitle("Shapeshift")
         self.create_action = QWidgetAction(self)
         self.create_action.setText("Create UE Project...")
         self.create_action.triggered.connect(self.exec_)
-        self.app_menu.addAction(self.create_action)
 
         self.setWindowTitle("Create UE Project")
 
@@ -180,9 +149,10 @@ class ShapeshiftDialog(QDialog):
         self.logbox_label = QLabel(parent=self)
         self.logbox_label.setText("Logs")
         self.logbox_label.setBuddy(self.logbox.widget)
+        self.logbox.widget.clear()
 
         self.logbox_handler = QLogHandler(self.logbox)
-        self.logger = logging.getLogger()
+        self.logger = logging.getLogger(__name__)
         self.logger.addHandler(self.logbox_handler)
         self.logger.setLevel(logging.DEBUG)
 
@@ -201,18 +171,24 @@ class ShapeshiftDialog(QDialog):
         self.bake_checkbox.stateChanged.connect(self.on_bake_checkbox_changed)
 
         self.dialog_vars = {}
-
-        painter_ev.DISPATCHER.connect(
-            painter_ev.ProjectEditionEntered,
-            self.on_project_edition_entered
-        )
-
         self.accepted.connect(self.on_dialog_accepted)
 
     @Slot()
     def on_create_button_clicked(self):
+        painter_ev.DISPATCHER.connect(
+            painter_ev.ProjectCreated,
+            self.on_project_created
+        )
+        painter_ev.DISPATCHER.connect(
+            painter_ev.ProjectEditionEntered,
+            self.on_project_edition_entered
+        )
         self.set_dialog_vars()
         self.create_project()
+
+    @Slot()
+    def on_project_created(self, ev):
+        self.logger.info("Create Project Done.")
 
     @Slot()
     def on_project_edition_entered(self, ev):
@@ -220,11 +196,17 @@ class ShapeshiftDialog(QDialog):
 
     def enable_buttons(self, mesh_file_path):
         p = Path(mesh_file_path)
-        if mesh_file_path and p.exists():
+        if mesh_file_path and p.exists() and p.is_file():
             self.mesh_file_line.setText(mesh_file_path)
             self.create_button.setEnabled(True)
             self.create_button.setDefault(True)
+            self.cancel_button.setEnabled(True)
             self.cancel_button.setDefault(False)
+        else:
+            self.create_button.setEnabled(False)
+            self.create_button.setDefault(False)
+            self.cancel_button.setEnabled(True)
+            self.cancel_button.setDefault(True)
 
     @Slot()
     def on_mesh_file_line_edited(self):
@@ -315,8 +297,8 @@ class ShapeshiftDialog(QDialog):
                 f"Project Already Open Error: {painter_proj.name()}"
             )
         else:
+            self.logger.info("Create Project...")
             try:
-                self.logger.info("Create Project...")
                 painter_proj.create(
                     self.dialog_vars["mesh_file_path"],
                     # template_file_path=
@@ -329,8 +311,6 @@ class ShapeshiftDialog(QDialog):
                     f"Project Creation Error: {e}"
                 )
                 raise
-            else:
-                self.logger.info("Create Project Done.")
 
     def bake_maps(self):
         if self.dialog_vars["is_bake_maps_checked"]:
@@ -368,24 +348,3 @@ class ShapeshiftDialog(QDialog):
         self.importer_thread.finished.connect(self.importer_thread.deleteLater)
         self.importer_thread.start()
         self.importer_thread.setPriority(QThread.LowestPriority)
-
-
-def start_plugin():
-    shapeshift_dialog = ShapeshiftDialog()
-    painter_ui.add_menu(
-        shapeshift_dialog.app_menu
-    )
-    plugin_widgets.append(shapeshift_dialog)
-    return None
-
-
-def close_plugin():
-    for widget in plugin_widgets:
-        painter_ui.delete_ui_element(widget)
-
-    plugin_widgets.clear()
-    return None
-
-
-if __name__ == "__main__":
-    start_plugin()
