@@ -236,9 +236,9 @@ class CreateDialog(QDialog):
 
     @Slot()
     def on_dialog_accepted(self):
-        self.logbox.widget.clear()
         p = Path(self.mesh_file_line.text())
         self.mesh_file_start_path = str(p.parent)
+        self.logbox.widget.clear()
 
     @Slot()
     def on_baker_result(self, mesh_maps):
@@ -314,7 +314,6 @@ class CreateDialog(QDialog):
 
     def bake_maps(self):
         if self.dialog_vars["is_bake_maps_checked"]:
-            self.logbox_handler = QLogHandler(self.logbox)
             self.baker_thread = QThread(parent=None)
             self.baker = Baker(
                 self.dialog_vars["mesh_file_path"],

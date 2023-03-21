@@ -16,7 +16,7 @@ class TexSet():
     def __init__(self, mesh_file_path, mesh_maps, **kwargs):
         self._mesh_file_path = self._get_mesh_file_path(mesh_file_path)
         self._mesh_maps = self._get_mesh_maps(mesh_maps)
-        self._logger = logging.getLogger()
+        self._logger = logging.getLogger(__name__)
         self._extra_handler = kwargs.setdefault("extra_handler", None)
         if self._extra_handler:
             self._logger.addHandler(self._extra_handler)
@@ -88,8 +88,7 @@ class TexSet():
         else:
             mesh_stem = Path(self._mesh_file_path).stem
             if mesh_stem.startswith("SM_"):
-                material_name = mesh_stem.replace("SM_", "M_", 1)
-                # material_name = material_name[3:]
+                material_name = mesh_stem.replace("SM_", "", 1)
             else:
                 try:
                     raise ValueError(
@@ -101,7 +100,7 @@ class TexSet():
                         "shapeshift",
                         f"Import Error: {e}"
                     )
-                    self._logger.error(f"Import Error: {mesh_map}")
+                    self._logger.error(f"Import Error: {mesh_stem}")
                     raise
 
             texture_set = painter_tex.TextureSet.from_name(material_name)
