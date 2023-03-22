@@ -23,19 +23,22 @@ def start_plugin():
         app_menu
     )
     plugin_widgets.append(app_menu)
+    plugin_widgets.append(export_dialog)
+    plugin_widgets.append(create_dialog)
     plugin_loggers.append(create_dialog.logger)
     plugin_loggers.append(export_dialog.logger)
     return None
 
 
 def close_plugin():
-    for widget in plugin_widgets:
-        painter_ui.delete_ui_element(widget)
-    plugin_widgets.clear()
-
     for logger in plugin_loggers:
         for handler in logger.handlers:
             logger.removeHandler(handler)
+    plugin_loggers.clear()
+
+    for widget in plugin_widgets:
+        painter_ui.delete_ui_element(widget)
+    plugin_widgets.clear()
 
     return None
 
