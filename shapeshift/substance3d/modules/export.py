@@ -319,7 +319,7 @@ class ExportDialog(QDialog):
             exports = "\n".join(next(iter(self.export_result.textures.values())))
             self.logger.info(exports)
             self.logger.info("Export Project Success.")
-            self.enable_OK()
+            self.enable_dismiss()
 
     def export_textures(self):
         self.logger.info("Export Project...")
